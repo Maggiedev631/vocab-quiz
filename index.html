@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>單字小考 Vocab Quiz</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#fffaf0; --ink:#26305a; --muted:#7a7f9a; --line:#f0e6d6;
+  --pri:#2f80ff; --pri2:#e6f0ff; --acc:#ff7a45; --acc2:#fff0e8;
+  --yel:#ffc93c; --mint:#2ec4a6; --pink:#ff5d8f; --orange:#ff7a45; --green:#2ec4a6; --blue:#2f80ff; --purple:#8a5cff;
+  --ok:#14a37f; --okbg:#e3f8f1; --bad:#e8435a; --badbg:#fde8eb; --unk:#c27c00; --unkbg:#fff4d6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);background-image:radial-gradient(#ffe2b8 1.2px,transparent 1.2px);background-size:22px 22px;color:var(--ink);font-family:"Fredoka","Noto Sans TC",system-ui,sans-serif;font-size:16px;line-height:1.55}
+header{background:linear-gradient(120deg,#ffd84d 0%,#ffb347 45%,#ff8f6b 100%);border-bottom:4px solid #26305a}
+.hwrap{max-width:960px;margin:0 auto;padding:16px 16px 0;position:relative;z-index:1}
+.toprow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.search{flex:1;min-width:240px;display:flex;align-items:center;gap:8px;background:#fff;border:3px solid #26305a;border-radius:18px;padding:4px 14px;box-shadow:0 4px 0 #26305a}
+.search span{font-size:22px}
+.search{position:relative}
+.sdrop{display:none;position:absolute;left:-3px;right:-3px;top:calc(100% + 8px);background:#fff;border:3px solid #26305a;border-radius:18px;box-shadow:0 8px 24px rgba(38,48,90,.25);max-height:60vh;overflow:auto;z-index:30;padding:8px}
+.sdrop.on{display:block}
+.sdrop .sh{font-size:13px;color:var(--muted);padding:4px 10px;font-weight:700}
+.sdrop .ri{padding:10px;border-radius:12px;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sdrop .ri:hover{background:#fff6d6}
+.sdrop .ri b{font-size:19px;min-width:110px}
+.sdrop .ri .meta2{font-size:13px;color:var(--muted)}
+.sdrop .nos{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.sdrop .nos button{border:2px solid #26305a;background:#fff;border-radius:999px;padding:2px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:#26305a}
+.sdrop .nos button:hover{background:var(--acc);color:#fff}
+.search input[type=text]{border:0;box-shadow:none;font-size:24px;font-weight:700;letter-spacing:1px;padding:8px 4px;background:transparent}
+header{position:sticky;top:0;z-index:10}
+h1{margin:0;font-size:26px;font-weight:700;color:#26305a;display:flex;align-items:center;gap:10px}
+h1 .badge{background:#fff;border:3px solid #26305a;border-radius:14px;padding:2px 12px;font-family:Fredoka,sans-serif;box-shadow:3px 3px 0 #26305a;transform:rotate(-3deg);display:inline-block}
+nav{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px}
+nav button{border:3px solid #26305a;background:#fff;border-radius:999px;padding:8px 16px;font:inherit;font-size:16px;font-weight:700;color:#26305a;cursor:pointer;white-space:nowrap;box-shadow:0 3px 0 #26305a;transition:transform .1s}
+nav button:active{transform:translateY(2px);box-shadow:0 1px 0 #26305a}
+nav button.on{color:#fff}
+nav button[data-tab=make].on{background:var(--acc)}
+nav button[data-tab=grade].on{background:var(--pri)}
+nav button[data-tab=results].on{background:var(--mint)}
+nav button[data-tab=bank].on{background:var(--purple)}
+nav button[data-tab=settings].on{background:var(--pink)}
+main{padding:22px 16px 80px;max-width:960px;margin:0 auto}
+section{display:none} section.on{display:block}
+.card{border:3px solid #26305a;border-radius:22px;padding:20px;margin-bottom:18px;background:#fff;box-shadow:5px 5px 0 rgba(38,48,90,.15)}
+.card h2{margin:0 0 12px;font-size:19px}
+.btn{border:2.5px solid #26305a;border-radius:14px;padding:9px 18px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:#fff;background:var(--pri);box-shadow:0 4px 0 #26305a;transition:transform .08s,box-shadow .08s,filter .15s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #26305a}
+.btn:hover{filter:brightness(1.07)}
+.btn.big{font-size:21px;padding:14px 30px;border-radius:18px;border-width:3px;box-shadow:0 5px 0 #26305a}
+.btn.orange{background:var(--acc)} .btn.green{background:var(--green)} .btn.purple{background:var(--purple)} .btn.pink{background:var(--pink)}
+.btn.ghost{background:#fff;color:var(--ink)}
+.btn.small{padding:5px 12px;font-size:14px;border-radius:10px;border-width:2px;box-shadow:0 3px 0 #26305a}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input[type=text],textarea,select{font:inherit;border:2.5px solid #d9dcea;border-radius:12px;padding:10px 12px;width:100%;background:#fff;color:var(--ink)}
+input[type=text]:focus,textarea:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px var(--pri2)}
+input.bigin{font-size:28px;font-weight:700;padding:12px 18px;letter-spacing:2px;border:3px solid #26305a;border-radius:16px;background:#fffdf5}
+textarea{min-height:140px;resize:vertical}
+label.f{display:block;font-size:15px;color:var(--ink);font-weight:700;margin-bottom:6px}
+details{margin-top:12px}
+details summary{cursor:pointer;color:var(--ink);font-size:15px;font-weight:700;padding:6px 0;list-style:none}
+details summary::before{content:"▸ "} details[open] summary::before{content:"▾ "}
+.drop{border:3px dashed #2f80ff;border-radius:22px;padding:44px 16px;text-align:center;background:#f0f6ff;cursor:pointer;transition:background .15s,transform .15s}
+.drop:hover,.drop.hover{background:#e0ecff;transform:scale(1.01)}
+.drop .ic{font-size:52px;line-height:1;display:inline-block;animation:bob 2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-6deg)}}
+.drop b{display:block;font-size:24px;color:var(--pri);margin:8px 0 4px}
+.hint{font-size:14px;color:var(--muted)}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:700}
+.p-wait{background:#eef1f6;color:var(--muted)} .p-run{background:var(--pri2);color:var(--pri)} .p-done{background:var(--okbg);color:var(--ok)} .p-err{background:var(--badbg);color:var(--bad)} .p-saved{background:#efe8ff;color:var(--purple)}
+.sheet-head{display:grid;grid-template-columns:88px 1fr;gap:14px;align-items:start}
+.thumb{width:88px;height:88px;object-fit:cover;border-radius:12px;border:1px solid var(--line);cursor:zoom-in}
+.meta{display:grid;grid-template-columns:1.3fr .8fr 1fr .8fr;gap:8px}
+.score{font-size:34px;font-weight:900;line-height:1}
+.score small{font-size:14px;color:var(--muted);font-weight:500;margin-left:6px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th{font-size:13px;color:var(--muted);text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);font-weight:500}
+td{padding:5px 4px;border-bottom:1px solid #eef1f6;vertical-align:middle}
+td.n{width:28px;color:var(--muted);font-size:14px}
+td input{padding:6px 8px;border-radius:8px;font-size:15px}
+.chip{border:0;border-radius:10px;min-width:40px;height:36px;font:inherit;font-weight:900;cursor:pointer;font-size:16px}
+.chip.given{background:#eef1f6;color:#a0a7b8;cursor:default;font-size:12px}
+.c-ok{background:var(--okbg);color:var(--ok)} .c-bad{background:var(--badbg);color:var(--bad)} .c-unk{background:var(--unkbg);color:var(--unk)}
+.note{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+.printed{font-weight:700;padding:5px 2px;display:block}
+tr.flag td{background:#fffbea}
+.key{font-size:12px;color:var(--pri)}
+.list{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.list div{display:grid;grid-template-columns:60px 1fr 1fr;padding:7px 12px;border-bottom:1px solid #eef1f6;font-size:15px}
+.list div:nth-child(odd){background:#fafbfe}
+.stat{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.stat div{background:#f4f6fb;border-radius:12px;padding:8px 14px;font-size:13px}
+.stat b{display:block;font-size:20px;color:var(--pri)}
+.res tr{cursor:pointer}
+.res td{font-size:15px;padding:8px 4px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90vw}
+.toast.on{opacity:1}
+.modal{position:fixed;inset:0;background:rgba(20,24,40,.5);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+.modal.on{display:flex}
+.modal .box{background:#fff;border-radius:18px;padding:20px;max-width:560px;width:100%;max-height:85vh;overflow:auto}
+.modal img{max-width:100%;border-radius:12px}
+.warn{background:var(--unkbg);color:#7a5200;border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+.err{background:var(--badbg);color:var(--bad);border-radius:12px;padding:10px 14px;font-size:14px;margin:8px 0}
+.okmsg{background:var(--okbg);color:var(--ok);border-radius:12px;padding:10px 14px;font-size:14px;margin:8px 0}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1.5px solid var(--line);border-radius:14px;margin-bottom:10px;cursor:pointer}
+.opt input{margin-top:5px}
+.opt.sel{border-color:#26305a;background:#fff6d6;box-shadow:3px 3px 0 #26305a}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.subbar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:14px;border-top:2.5px dashed #f0dcbc}
+.switch{display:flex;gap:6px;align-items:center;font-size:15px;cursor:pointer}
+.switch input{width:18px;height:18px}
+.linkbtn{background:none;border:0;color:var(--pri);font:inherit;font-size:15px;font-weight:700;cursor:pointer;padding:4px}
+.paper{border:1.5px solid #222;border-radius:4px;padding:18px 20px;background:#fff;color:#111;margin-top:16px;font-family:"Noto Sans TC",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.paper .ph{display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-weight:900;font-size:19px}
+.paper .ph .ln{display:inline-block;border-bottom:1.5px solid #111;width:120px;height:18px;vertical-align:bottom}
+.paper{position:relative}
+.paper .ph{padding-right:120px}
+.paper .no{position:absolute;right:20px;top:16px;border:2px solid #111;padding:2px 14px;font-size:15px}
+.paper .no b{font-size:26px;margin-left:6px}
+.paper .pi{font-size:13px;color:#555;margin:6px 0 10px}
+.paper .pt{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #111}
+.paper table{margin:0;border-collapse:collapse;table-layout:fixed;width:100%}
+.paper col.c1{width:44px} .paper col.c2{width:46%}
+.paper td{overflow-wrap:anywhere}
+.paper tr.sent td{height:auto;padding:4px 10px 8px;border-top:1px dashed #bbb;font-size:15px;color:#333;background:#fffdf3}
+.paper tr.sent b{color:#d0021b}
+.paper tr.sent small{display:block;color:#777;font-size:13px}
+.paper tr.w td{border-bottom:none}
+.paper tr.wr{cursor:pointer}
+.paper tr.wr:hover td{background:#fff6d6}
+.paper tr.open td{background:#fff3c4}
+.paper .sstat{font-size:13px;color:#a06a00;margin:0 0 8px}
+.paper th,.paper td{border:1px solid #111;padding:6px 10px;font-size:16px;height:44px}
+.paper th{height:auto;font-weight:900;color:#111;font-size:14px}
+.paper td.n{width:34px;font-weight:900;color:#111;font-size:15px}
+.paper .ans{color:#d0021b;font-weight:700}
+.paper .prt{color:#111}
+.paper.hide .ans{color:transparent}
+.empty{text-align:center;color:var(--muted);padding:40px 10px;font-size:17px;border:3px dashed #ffd38a;border-radius:18px;margin-top:16px;background:#fffaf0}
+@media (max-width:700px){.paper .pt{grid-template-columns:1fr}}
+@media (max-width:560px){
+  .grid2{grid-template-columns:1fr}
+  .meta{grid-template-columns:1fr 1fr}
+  .sheet-head{grid-template-columns:64px 1fr}
+  .thumb{width:64px;height:64px}
+  .btn.big{width:100%}
+}
+
+.noin{width:90px !important;text-align:center;font-weight:700}
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="toprow">
+    <h1><span class="badge">Vocab Quiz</span> 單字小考 ✏️</h1>
+    <div class="search" id="searchBox"><span>🔍</span><input type="text" id="mkRange" placeholder="輸入考試範圍，例如 T24-T43" autocomplete="off">
+      <div class="sdrop" id="sdrop"></div></div>
+  </div>
+  <nav>
+    <button data-tab="make" class="on">📝 出考卷</button>
+    <button data-tab="bank">📚 題庫</button>
+  </nav>
+</div></header>
+<main>
+  <section id="tab-make" class="on">
+    <div class="card">
+      <div class="toolbar" style="margin-top:0">
+        <button class="btn big orange" id="mkShuffle">🔀 亂序</button>
+        <button class="btn big" id="mkDownload">🖨 下載考卷</button>
+        <div class="row" style="gap:6px"><input type="text" id="mkCount" value="1" inputmode="numeric" style="width:70px;font-size:18px;text-align:center"><span>份</span></div>
+        <label class="switch" style="font-weight:700"><input type="checkbox" id="mkKey" checked> 含老師答案版</label>
+      </div>
+      <div class="hint" style="margin-top:8px">印很多份時，每一份的順序都不一樣，右上角 No. 也不同。勾「含老師答案版」會在 PDF 最後附上每個 No. 的紅字答案頁。</div>
+      <div id="mkMsg"></div>
+      <div class="subbar">
+        <div class="row" style="gap:6px"><b>No.</b><input type="text" id="mkNo" class="noin" inputmode="numeric" placeholder="幾號"><button class="btn small" id="mkGo">看答案</button></div>
+        <button class="linkbtn" id="mkOrig">回到原始順序</button>
+        <span class="hint" style="margin-left:auto">👆 點單字看例句</span>
+        <button class="btn small" id="mkSentBtn" style="background:var(--mint)">🗣 全部例句</button>
+        <input type="checkbox" id="mkShowSent" hidden>
+        <label class="switch"><input type="checkbox" id="mkShowAns" checked> 顯示答案</label>
+      </div>
+      <div id="paperView"></div>
+      <details>
+        <summary>更多設定</summary>
+        <div class="grid2" style="margin-top:10px">
+          <div><label class="f">題型</label>
+            <select id="mkMode">
+              <option value="blank">空白卷（學生寫英文和中文）</option>
+              <option value="zh">看中文，寫英文</option>
+              <option value="en">看英文，寫中文</option>
+              <option value="mix">混合（隨機出中文或英文）</option>
+            </select></div>
+          <div><label class="f">每張 A4 印幾份</label>
+            <select id="mkPer"><option value="2">2 份（上下對切）</option><option value="1">1 份</option></select></div>
+          <div><label class="f">日期（會印在考卷上）</label><input type="text" id="mkDate" placeholder="例如 11/20"></div>
+        </div>
+      </details>
+    </div>
+  </section>
+  <section id="tab-bank">
+    <div class="card">
+      <h2>📚 1200 單題庫</h2>
+      <div class="stat" id="bankStat"></div>
+      <input type="text" id="bankSearch" placeholder="搜尋編號、英文或中文；輸入 T44-T63 可看範圍">
+      <div class="list" id="bankList" style="margin-top:8px"></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+let bank = {}, sents = {};
+let curPaper = null;
+const openSent = new Set();
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function toast(msg, ms = 2200) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms); }
+const FONT = '"Noto Sans TC", sans-serif';
+const PW = 1240, PH = 1754, SCALE = 1.5;
+const MODE_NAME = { blank: "空白卷", zh: "看中文寫英文", en: "看英文寫中文", mix: "混合" };
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === "tab-" + b.dataset.tab));
+});
+
+function parseRange(r) {
+  const m = String(r || "").replace(/\s/g, "").toUpperCase().match(/^([A-Z]{0,2})(\d+)[-~～—–到至]([A-Z]{0,2})(\d+)$/);
+  if (!m) return null;
+  let L1 = m[1] || m[3] || "", L2 = m[3] || L1;
+  let a = +m[2], b = +m[4];
+  if (L1 === L2) {
+    if (b < a) [a, b] = [b, a];
+    if (b - a > 200) return null;
+    return { L1, L2, a, b, cross: false, len: b - a + 1, text: L1 ? `${L1}${a}-${L1}${b}` : `${a}-${b}` };
+  }
+  if (L1 > L2) { [L1, L2] = [L2, L1]; [a, b] = [b, a]; }
+  return { L1, L2, a, b, cross: true, len: 0, text: `${L1}${a}-${L2}${b}` };
+}
+function inRange(p, k) {
+  const [L, n] = splitKey(k);
+  if (!p.cross) return L === p.L1 && n >= p.a && n <= p.b;
+  if (L < p.L1 || L > p.L2) return false;
+  if (L === p.L1 && n < p.a) return false;
+  if (L === p.L2 && n > p.b) return false;
+  return true;
+}
+function rangeSpan(p) {
+  if (!p.cross) {
+    const keys = [], missing = [];
+    for (let i = p.a; i <= p.b; i++) { const k = p.L1 + i; (bank[k] ? keys : missing).push(k); }
+    return { keys, missing, len: p.len };
+  }
+  const keys = Object.keys(bank).filter(k => inRange(p, k)).sort(cmpKey);
+  const missing = [];
+  if (!bank[p.L1 + p.a]) missing.push(p.L1 + p.a);
+  for (let i = 1; i <= p.b; i++) if (!bank[p.L2 + i]) missing.push(p.L2 + i);
+  return { keys, missing, len: keys.length + missing.length };
+}
+function normRange(r) { const p = parseRange(r); return p ? p.text : String(r || "").trim(); }
+function splitKey(k) { const m = String(k).match(/^([A-Z]*)(\d+)$/); return m ? [m[1], +m[2]] : [String(k), 0]; }
+function cmpKey(a, b) { const [la, na] = splitKey(a), [lb, nb] = splitKey(b); return la < lb ? -1 : la > lb ? 1 : na - nb; }
+function fitText(ctx, text, maxW, size, weight = 500) {
+  let s = size;
+  do { ctx.font = `${weight} ${s}px ${FONT}`; if (ctx.measureText(text).width <= maxW) break; s -= 1; } while (s > 12);
+  return s;
+}
+function drawQuiz(ctx, ox, oy, w, h, paper, date, withKey) {
+  const m = 56, n = paper.items.length;
+  const x0 = ox + m, x1 = ox + w - m;
+  ctx.fillStyle = "#000"; ctx.strokeStyle = "#000"; ctx.textBaseline = "alphabetic";
+  // header
+  let y = oy + 64;
+  ctx.font = `700 30px ${FONT}`;
+  ctx.fillText("Name:", x0, y); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x0 + 96, y + 4); ctx.lineTo(x0 + 330, y + 4); ctx.stroke();
+  ctx.fillText("Range:", x0 + 360, y);
+  ctx.font = `500 28px ${FONT}`; ctx.fillText(paper.range, x0 + 465, y);
+  ctx.font = `700 30px ${FONT}`; ctx.fillText("Score:", x0 + 640, y);
+  ctx.beginPath(); ctx.moveTo(x0 + 738, y + 4); ctx.lineTo(x0 + 880, y + 4); ctx.stroke();
+  const blank = paper.mode === "blank";
+  // 流水號：第幾份亂序卷
+  ctx.lineWidth = 2.5; ctx.strokeRect(x1 - 200, oy + 26, 200, 52);
+  ctx.font = `700 22px ${FONT}`; ctx.fillText("No.", x1 - 188, y - 2);
+  ctx.font = `900 34px ${FONT}`; ctx.fillText(String(paper.code), x1 - 140, y);
+  y += 44;
+  ctx.font = `500 22px ${FONT}`; ctx.fillStyle = "#333";
+  const instr = { blank: "寫出英文單字和中文意思", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[paper.mode];
+  ctx.fillText(instr + (date ? `　　Date: ${date}` : ""), x0, y);
+  if (withKey) { ctx.fillStyle = "#d0021b"; ctx.font = `900 22px ${FONT}`; ctx.fillText("【教師答案】", x1 - 150, y); }
+  ctx.fillStyle = "#000";
+  // table
+  const top = y + 18, bottom = oy + h - 40;
+  const rowsN = Math.ceil(n / 2);
+  const headH = 40, rowH = Math.min(78, (bottom - top - headH) / rowsN);
+  const colW = (x1 - x0) / 2;
+  const cNo = 46, cQ = blank ? (colW - cNo) * 0.5 : colW * 0.42;
+  ctx.lineWidth = 1.6;
+  for (let side = 0; side < 2; side++) {
+    const sx = x0 + side * colW;
+    const cnt = side === 0 ? rowsN : n - rowsN;
+    if (cnt <= 0) continue;
+    const tblH = headH + cnt * rowH;
+    ctx.strokeRect(sx, top, colW, tblH);
+    ctx.beginPath();
+    ctx.moveTo(sx + cNo, top); ctx.lineTo(sx + cNo, top + tblH);
+    ctx.moveTo(sx + cNo + cQ, top); ctx.lineTo(sx + cNo + cQ, top + tblH);
+    for (let r = 0; r <= cnt; r++) { const yy = top + headH + r * rowH; ctx.moveTo(sx, yy); ctx.lineTo(sx + colW, yy); }
+    ctx.stroke();
+    ctx.font = `700 22px ${FONT}`; ctx.fillStyle = "#000";
+    ctx.fillText(blank ? "English" : "題目", sx + cNo + 12, top + 28);
+    ctx.fillText(blank ? "Chinese" : "作答", sx + cNo + cQ + 12, top + 28);
+    for (let r = 0; r < cnt; r++) {
+      const idx = side * rowsN + r, it = paper.items[idx];
+      const cy = top + headH + r * rowH + rowH / 2 + 9;
+      ctx.fillStyle = "#000";
+      ctx.font = `700 22px ${FONT}`; ctx.fillText(String(idx + 1), sx + 10, cy);
+      if (blank) {
+        if (withKey) {
+          ctx.fillStyle = "#d0021b";
+          let f = fitText(ctx, it.en, cQ - 20, 24, 700); ctx.font = `700 ${f}px ${FONT}`; ctx.fillText(it.en, sx + cNo + 10, cy);
+          f = fitText(ctx, it.zh, colW - cNo - cQ - 20, 24, 700); ctx.font = `700 ${f}px ${FONT}`; ctx.fillText(it.zh, sx + cNo + cQ + 10, cy);
+        }
+        continue;
+      }
+      const q = it.show === "zh" ? it.zh : it.en;
+      const fs = fitText(ctx, q, cQ - 20, 26, 500);
+      ctx.font = `500 ${fs}px ${FONT}`; ctx.fillText(q, sx + cNo + 10, cy);
+      if (withKey) {
+        const a = it.show === "zh" ? it.en : it.zh;
+        const fa = fitText(ctx, a, colW - cNo - cQ - 20, 24, 700);
+        ctx.fillStyle = "#d0021b"; ctx.font = `700 ${fa}px ${FONT}`; ctx.fillText(a, sx + cNo + cQ + 10, cy);
+      }
+    }
+  }
+}
+function renderPages(papers, per, date, keyPapers) {
+  const pages = [];
+  const jobs = [];
+  papers.forEach(p => jobs.push([p, false]));
+  (keyPapers || []).forEach(p => jobs.push([p, true]));
+  for (let i = 0; i < jobs.length; i += per) {
+    const c = document.createElement("canvas"); c.width = PW * SCALE; c.height = PH * SCALE;
+    const ctx = c.getContext("2d"); ctx.scale(SCALE, SCALE);
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, PW, PH);
+    for (let j = 0; j < per && i + j < jobs.length; j++) {
+      const [p, k] = jobs[i + j];
+      const h = PH / per;
+      drawQuiz(ctx, 0, j * h, PW, h, p, date, k);
+      if (per === 2 && j === 0) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#999"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(30, h); ctx.lineTo(PW - 30, h); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = "#000"; }
+    }
+    pages.push(c);
+  }
+  return pages;
+}
+async function loadFonts(papers) {
+  const txt = papers.flatMap(p => p.items.map(i => i.zh + i.en)).join("") + "卷號題目作答看中文寫出英文單字意思或教師答案【】NameRangeScoreDate0123456789ABCDEFGHJKMNPRSTUVWXYZ:";
+  try { await Promise.all([500, 700, 900].map(wt => document.fonts.load(`${wt} 26px "Noto Sans TC"`, txt))); } catch {}
+}
+function hiWord(s, w) {
+  const base = String(w).replace(/\s*\(.*?\)/g, "").split("/")[0].trim();
+  const out = esc(s);
+  if (!base) return out;
+  const re = new RegExp("\\b(" + base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[a-z]*)", "i");
+  return out.replace(re, "<b>$1</b>");
+}
+
+// ---------- 亂序：同一個範圍＋題型＋No. 永遠得到同一個順序（換電腦、手機也一樣） ----------
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makePaper(range, mode, no) {
+  const p = parseRange(range); if (!p) return null;
+  const sp = rangeSpan(p);
+  const words = sp.keys.map(k => ({ key: k, en: bank[k].en, zh: bank[k].zh }));
+  if (!no) return { code: "", range: p.text, mode, items: words.map(w => ({ ...w, show: mode === "mix" ? "zh" : mode })), missing: sp.missing };
+  const r = rng(hashStr(`${p.text}|${mode}|${no}`));
+  const a = words.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return { code: String(no), range: p.text, mode, items: a.map(w => ({ ...w, show: mode === "mix" ? (r() < .5 ? "zh" : "en") : mode })), missing: sp.missing };
+}
+
+// ---------- 紀錄（存在這台裝置的瀏覽器） ----------
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+let hist = lsGet("vq_hist", []);   // [{no, range, mode, t}]
+function nextNos(count) { const n = lsGet("vq_counter", 0); lsSet("vq_counter", n + count); return n + 1; }
+function addHist(list) { hist = [...list, ...hist].slice(0, 2000); lsSet("vq_hist", hist); }
+
+function mkMsg(html) { $("#mkMsg").innerHTML = html; }
+function curMode() { return $("#mkMode").value; }
+function renderPaper() {
+  const p = curPaper;
+  if (!p) { $("#paperView").innerHTML = `<div class="empty">👆 輸入考試範圍，考卷就會出現在這裡</div>`; return; }
+  const n = p.items.length, half = Math.ceil(n / 2);
+  const blank = p.mode === "blank";
+  const cell = (it, side) => {
+    if (blank || it.show === "blank") return `<span class="ans">${esc(side === "en" ? it.en : it.zh)}</span>`;
+    return it.show === side ? `<span class="prt">${esc(side === "en" ? it.en : it.zh)}</span>` : `<span class="ans">${esc(side === "en" ? it.en : it.zh)}</span>`;
+  };
+  const showAll = $("#mkShowSent").checked;
+  const isOpen = it => showAll || openSent.has(it.key);
+  const sentRow = it => {
+    if (!isOpen(it)) return "";
+    const s = sents[it.key];
+    if (!s) return `<tr class="sent"><td></td><td colspan="2"><small>（這個字沒有例句）</small></td></tr>`;
+    return `<tr class="sent"><td></td><td colspan="2">🗣 ${hiWord(s[0], it.en)}${s[1] ? `<small>${esc(s[1])}</small>` : ""}</td></tr>`;
+  };
+  const tbl = (from, to) => `<table><colgroup><col class="c1"><col class="c2"><col></colgroup><thead><tr><th></th><th>English</th><th>Chinese</th></tr></thead><tbody>${p.items.slice(from, to).map((it, i) => `<tr class="wr ${isOpen(it) ? "w open" : ""}" data-sk="${esc(it.key)}" title="點一下看例句"><td class="n">${from + i + 1}</td><td>${cell(it, "en")}</td><td>${cell(it, "zh")}</td></tr>${sentRow(it)}`).join("")}</tbody></table>`;
+  const instr = { blank: "寫出英文單字和中文意思", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[p.mode];
+  $("#paperView").innerHTML = `<div class="paper ${$("#mkShowAns").checked ? "" : "hide"}">
+    <div class="ph"><span>Name: <span class="ln"></span></span><span>Range: <span style="font-weight:500">${esc(p.range)}</span></span><span>Score: <span class="ln" style="width:80px"></span></span>
+      <span class="no">No.<b>${p.code ? esc(p.code) : "—"}</b></span></div>
+    <div class="pi">${esc(instr)}${p.code ? `　｜　亂序第 ${esc(p.code)} 份` : "　｜　原始順序（按「🔀 亂序」打亂）"}</div>
+    <div class="pt">${tbl(0, half)}${tbl(half, n)}</div>
+  </div>`;
+}
+function showRange(no) {
+  const raw = $("#mkRange").value.trim();
+  const p = parseRange(raw);
+  if (!p) { curPaper = null; mkMsg(raw ? `<div class="err">範圍格式請寫成像 T24-T43</div>` : ""); renderPaper(); return; }
+  const pp = makePaper(p.text, curMode(), no);
+  if (!pp.items.length) { curPaper = null; mkMsg(`<div class="err">題庫裡沒有 ${esc(p.text)} 的單字</div>`); renderPaper(); return; }
+  curPaper = pp; $("#mkNo").value = no ? String(no) : "";
+  mkMsg(pp.missing.length ? `<div class="warn">題庫缺少：${esc(pp.missing.join("、"))}</div>` : "");
+  renderPaper();
+}
+$("#paperView").addEventListener("click", e => {
+  const tr = e.target.closest("tr.wr"); if (!tr) return;
+  const k = tr.dataset.sk; openSent.has(k) ? openSent.delete(k) : openSent.add(k); renderPaper();
+});
+$("#mkSentBtn").onclick = () => {
+  const on = !$("#mkShowSent").checked; $("#mkShowSent").checked = on;
+  if (!on) openSent.clear();
+  $("#mkSentBtn").textContent = on ? "🙈 全部收起" : "🗣 全部例句";
+  renderPaper();
+};
+$("#mkShowAns").onchange = renderPaper;
+$("#mkOrig").onclick = () => showRange(0);
+$("#mkMode").onchange = () => showRange(curPaper && curPaper.code ? +curPaper.code : 0);
+$("#mkGo").onclick = () => { const n = parseInt($("#mkNo").value, 10); if (!n) return toast("請輸入 No. 號碼"); if (!parseRange($("#mkRange").value)) return toast("請先輸入範圍"); showRange(n); };
+$("#mkNo").addEventListener("keydown", e => { if (e.key === "Enter") $("#mkGo").click(); });
+$("#mkShuffle").onclick = () => {
+  const p = parseRange($("#mkRange").value); if (!p) return mkMsg(`<div class="err">請先輸入範圍，例如 T24-T43</div>`);
+  const no = nextNos(1);
+  addHist([{ no, range: p.text, mode: curMode(), t: Date.now() }]);
+  showRange(no);
+};
+function getCount() { return Math.max(1, Math.min(60, parseInt($("#mkCount").value, 10) || 1)); }
+$("#mkDownload").onclick = async () => {
+  const p = parseRange($("#mkRange").value); if (!p) return mkMsg(`<div class="err">請先輸入範圍，例如 T24-T43</div>`);
+  if (!window.jspdf) return mkMsg(`<div class="err">PDF 元件載入失敗，請重新整理</div>`);
+  const count = getCount(), mode = curMode();
+  let papers;
+  if (count === 1 && curPaper && curPaper.code && curPaper.range === p.text) papers = [curPaper];
+  else {
+    const start = nextNos(count);
+    papers = []; const h = [];
+    for (let i = 0; i < count; i++) { papers.push(makePaper(p.text, mode, start + i)); h.push({ no: start + i, range: p.text, mode, t: Date.now() }); }
+    addHist(h.reverse());
+    curPaper = papers[0]; $("#mkNo").value = curPaper.code; renderPaper();
+  }
+  const btn = $("#mkDownload"); btn.disabled = true; mkMsg(`<div class="hint" style="margin-top:8px">排版中…</div>`);
+  try {
+    const per = +$("#mkPer").value === 2 ? 2 : 1, date = $("#mkDate").value.trim();
+    await loadFonts(papers);
+    const pages = renderPages(papers, per, date, $("#mkKey").checked ? papers : []);
+    const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", compress: true });
+    pages.forEach((pg, i) => { if (i) pdf.addPage(); pdf.addImage(pg.toDataURL("image/jpeg", .9), "JPEG", 0, 0, 210, 297); });
+    const a = papers[0].code, b = papers[papers.length - 1].code;
+    pdf.save(`單字小考_${p.text}_No${a}${papers.length > 1 ? "-" + b : ""}.pdf`);
+    mkMsg(`<div class="okmsg">✅ 已下載 No.${a}${papers.length > 1 ? `–${b}` : ""}${$("#mkKey").checked ? "（最後幾頁是老師答案版）" : ""}</div>`);
+  } catch (e) { mkMsg(`<div class="err">下載失敗：${esc(e.message || e)}</div>`); }
+  btn.disabled = false;
+};
+
+// ---------- 搜尋下拉：出過的考卷 ----------
+function renderDrop() {
+  const q = $("#mkRange").value.trim().toUpperCase();
+  const byR = {};
+  hist.forEach(x => { (byR[x.range] = byR[x.range] || []).push(x); });
+  let ranges = Object.keys(byR).sort((a, b) => byR[b][0].t - byR[a][0].t);
+  if (q) ranges = ranges.filter(r => r.toUpperCase().includes(q) || r.toUpperCase().startsWith(q.split("-")[0]));
+  const pr = parseRange(q);
+  let html = "";
+  if (pr && !byR[pr.text]) html += `<div class="ri" data-range="${esc(pr.text)}"><b>${esc(pr.text)}</b><span class="meta2">✨ 新範圍，還沒出過考卷</span></div>`;
+  if (ranges.length) html += `<div class="sh">📋 出過的考卷（${ranges.length} 個範圍）</div>` + ranges.slice(0, 50).map(r => {
+    const ps = byR[r].slice().sort((a, b) => b.no - a.no);
+    return `<div class="ri" data-range="${esc(r)}"><b>${esc(r)}</b><span class="meta2">${ps.length} 份｜最近 ${esc(fmtTime(ps[0].t))}</span>
+      <div class="nos">${ps.slice(0, 30).map(x => `<button data-no="${x.no}" data-mode="${esc(x.mode)}">No.${x.no}</button>`).join("")}${ps.length > 30 ? `<span class="meta2">…還有 ${ps.length - 30} 份</span>` : ""}</div></div>`;
+  }).join("");
+  if (!html) html = `<div class="sh">${hist.length ? "找不到符合的範圍" : "還沒出過考卷，輸入範圍（例如 T24-T43）就能開始"}</div>`;
+  $("#sdrop").innerHTML = html;
+}
+function openDrop() { renderDrop(); $("#sdrop").classList.add("on"); }
+function closeDrop() { $("#sdrop").classList.remove("on"); }
+$("#mkRange").addEventListener("focus", openDrop);
+$("#mkRange").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") { closeDrop(); $("#mkRange").blur(); } });
+document.addEventListener("click", e => { if (!e.target.closest("#searchBox")) closeDrop(); });
+$("#sdrop").addEventListener("click", e => {
+  const b = document.querySelector('nav button[data-tab=make]'); if (!b.classList.contains("on")) b.click();
+  const ri = e.target.closest("[data-range]"); if (!ri) return;
+  $("#mkRange").value = ri.dataset.range;
+  const no = e.target.closest("[data-no]");
+  if (no) { $("#mkMode").value = no.dataset.mode || "blank"; showRange(+no.dataset.no); }
+  else showRange(0);
+  closeDrop();
+});
+$("#mkRange").oninput = () => {
+  openDrop();
+  const b = document.querySelector('nav button[data-tab=make]'); if (!b.classList.contains("on")) b.click();
+  showRange(0);
+};
+
+// ---------- 題庫 ----------
+function renderBank() {
+  const nos = Object.keys(bank).sort(cmpKey);
+  const letters = {}; nos.forEach(k => { const L = splitKey(k)[0] || "#"; letters[L] = (letters[L] || 0) + 1; });
+  $("#bankStat").innerHTML = `<div><b>${nos.length}</b>個單字</div>` + Object.keys(letters).sort().map(L => `<div><b>${esc(L)}</b>${letters[L]} 個</div>`).join("");
+  const q = $("#bankSearch").value.trim(), ql = q.toLowerCase(), pr = parseRange(q);
+  let list = nos;
+  if (pr) list = nos.filter(k => inRange(pr, k));
+  else if (q) list = nos.filter(k => k.toLowerCase() === ql || k.toLowerCase().startsWith(ql) && /\d/.test(ql) || bank[k].en.toLowerCase().includes(ql) || String(bank[k].zh).includes(q));
+  const shown = list.slice(0, 300);
+  $("#bankList").innerHTML = shown.length ? shown.map(n => `<div><span style="color:var(--muted)">${n}</span><b>${esc(bank[n].en)}</b><span>${esc(bank[n].zh)}</span></div>`).join("") + (list.length > 300 ? `<div style="display:block;color:var(--muted)">還有 ${list.length - 300} 個，請用搜尋縮小範圍</div>` : "") : `<div style="display:block;color:var(--muted)">找不到</div>`;
+}
+$("#bankSearch").oninput = renderBank;
+
+// ---------- 載入 ----------
+Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").then(r => r.json()).catch(() => ({}))]).then(([b, s]) => {
+  for (const k in b) bank[k] = Array.isArray(b[k]) ? { en: b[k][0], zh: b[k][1] } : b[k];
+  sents = s; renderBank(); showRange(0);
+}).catch(() => mkMsg(`<div class="err">題庫載入失敗，請重新整理</div>`));
+function fmtTime(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
+renderPaper();
+</script>
+</body>
+</html>
