@@ -203,6 +203,12 @@ tr.flag td{background:#fffbea}
         </div>
       </details>
     </div>
+    <div class="card">
+      <h2>📋 所有考卷紀錄</h2>
+      <input type="text" id="recSearch" placeholder="輸入 No.（例如 37）或範圍（例如 T24-T43）">
+      <div id="recList" style="margin-top:10px"></div>
+      <div class="hint" style="margin-top:6px">紀錄存在這台裝置的瀏覽器。換電腦或手機時，輸入範圍和 No. 一樣看得到同一份答案。</div>
+    </div>
   </section>
   <section id="tab-bank">
     <div class="card">
@@ -391,7 +397,22 @@ function lsGet(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 let hist = lsGet("vq_hist", []);   // [{no, range, mode, t}]
 function nextNos(count) { const n = lsGet("vq_counter", 0); lsSet("vq_counter", n + count); return n + 1; }
-function addHist(list) { hist = [...list, ...hist].slice(0, 2000); lsSet("vq_hist", hist); }
+function addHist(list) { hist = [...list, ...hist].slice(0, 2000); lsSet("vq_hist", hist); renderRecords(); }
+function renderRecords() {
+  const q = $("#recSearch").value.trim().toUpperCase().replace(/^NO\.?\s*/, "");
+  let list = hist;
+  if (q) list = list.filter(x => String(x.no) === q || x.range.toUpperCase() === normRange(q).toUpperCase() || x.range.toUpperCase().includes(q));
+  if (!list.length) { $("#recList").innerHTML = `<div class="hint">${hist.length ? "找不到" : "還沒有產生過考卷，按「🔀 亂序」或「🖨 下載考卷」就會記錄在這裡"}</div>`; return; }
+  const byR = {}, order = [];
+  list.forEach(x => { if (!byR[x.range]) { byR[x.range] = []; order.push(x.range); } byR[x.range].push(x); });
+  $("#recList").innerHTML = order.slice(0, 60).map(r => {
+    const ps = byR[r].slice().sort((a, b) => b.no - a.no);
+    return `<div style="border:2.5px solid #e6e0d2;border-radius:16px;padding:12px;margin-bottom:10px">
+      <div class="row" style="justify-content:space-between"><b style="font-size:18px">${esc(r)}</b><span class="hint">${ps.length} 份｜最近 ${esc(fmtTime(ps[0].t))}</span></div>
+      <div class="row" style="margin-top:8px;gap:6px">${ps.map(x => `<button class="btn small ghost" data-range="${esc(r)}" data-no="${x.no}" data-mode="${esc(x.mode)}" title="${esc(MODE_NAME[x.mode] || "")}｜${esc(fmtTime(x.t))}">No.${x.no}</button>`).join("")}</div>
+    </div>`;
+  }).join("");
+}
 
 function mkMsg(html) { $("#mkMsg").innerHTML = html; }
 function curMode() { return $("#mkMode").value; }
@@ -531,6 +552,13 @@ function renderBank() {
   $("#bankList").innerHTML = shown.length ? shown.map(n => `<div><span style="color:var(--muted)">${n}</span><b>${esc(bank[n].en)}</b><span>${esc(bank[n].zh)}</span></div>`).join("") + (list.length > 300 ? `<div style="display:block;color:var(--muted)">還有 ${list.length - 300} 個，請用搜尋縮小範圍</div>` : "") : `<div style="display:block;color:var(--muted)">找不到</div>`;
 }
 $("#bankSearch").oninput = renderBank;
+$("#recSearch").oninput = renderRecords;
+$("#recList").onclick = e => {
+  const b = e.target.closest("[data-no]"); if (!b) return;
+  $("#mkRange").value = b.dataset.range; $("#mkMode").value = b.dataset.mode || "blank";
+  showRange(+b.dataset.no);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
 // ---------- 載入 ----------
 Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").then(r => r.json()).catch(() => ({}))]).then(([b, s]) => {
@@ -538,7 +566,7 @@ Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").the
   sents = s; renderBank(); showRange(0);
 }).catch(() => mkMsg(`<div class="err">題庫載入失敗，請重新整理</div>`));
 function fmtTime(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
-renderPaper();
+renderPaper(); renderRecords();
 </script>
 </body>
 </html>
