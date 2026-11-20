@@ -348,22 +348,18 @@ function drawQuiz(ctx, ox, oy, w, h, paper, date, withKey) {
   }
 }
 function renderPages(papers, per, date, keyPapers) {
+  // 學生卷：每頁 per 份（只有 1 份時上下印同一份）；老師答案：另起新頁，一頁一份
   const pages = [];
-  const jobs = [];
-  papers.forEach(p => jobs.push([p, false]));
-  (keyPapers || []).forEach(p => jobs.push([p, true]));
-  for (let i = 0; i < jobs.length; i += per) {
-    const c = document.createElement("canvas"); c.width = PW * SCALE; c.height = PH * SCALE;
-    const ctx = c.getContext("2d"); ctx.scale(SCALE, SCALE);
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, PW, PH);
-    for (let j = 0; j < per && i + j < jobs.length; j++) {
-      const [p, k] = jobs[i + j];
-      const h = PH / per;
-      drawQuiz(ctx, 0, j * h, PW, h, p, date, k);
+  const studs = per === 2 && papers.length === 1 ? [papers[0], papers[0]] : papers;
+  const page = () => { const c = document.createElement("canvas"); c.width = PW * SCALE; c.height = PH * SCALE; const ctx = c.getContext("2d"); ctx.scale(SCALE, SCALE); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, PW, PH); pages.push(c); return ctx; };
+  for (let i = 0; i < studs.length; i += per) {
+    const ctx = page(), h = PH / per;
+    for (let j = 0; j < per && i + j < studs.length; j++) {
+      drawQuiz(ctx, 0, j * h, PW, h, studs[i + j], date, false);
       if (per === 2 && j === 0) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#999"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(30, h); ctx.lineTo(PW - 30, h); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = "#000"; }
     }
-    pages.push(c);
   }
+  for (const k of (keyPapers || [])) drawQuiz(page(), 0, 0, PW, PH, k, date, true);
   return pages;
 }
 async function loadFonts(papers) {
