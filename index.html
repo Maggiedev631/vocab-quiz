@@ -40,6 +40,38 @@ nav button{border:3px solid #26305a;background:#fff;border-radius:999px;padding:
 nav button:active{transform:translateY(2px);box-shadow:0 1px 0 #26305a}
 nav button.on{color:#fff}
 nav button[data-tab=make].on{background:var(--acc)}
+nav button[data-tab=spell].on{background:#f5b700;color:#26305a}
+/* ---------- 拼字練習 ---------- */
+.sp-wrap{max-width:720px;margin:0 auto}
+.sp-hero{text-align:center;padding:10px 0 4px}
+.sp-hero .bee{font-size:64px;display:inline-block;animation:bob 2.2s ease-in-out infinite}
+.sp-hero h2{font-size:28px;margin:6px 0 2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip2{border:2.5px solid #26305a;background:#fff;border-radius:999px;padding:7px 16px;font:inherit;font-weight:700;cursor:pointer;color:#26305a;box-shadow:0 3px 0 #26305a}
+.chip2.on{background:#ffd84d}
+.sp-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-weight:700}
+.sp-bar{height:12px;background:#f1eadb;border-radius:99px;overflow:hidden;border:2px solid #26305a;margin:10px 0 4px}
+.sp-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd84d,#ff7a45);transition:width .3s}
+.sp-speak{display:block;margin:18px auto 8px;width:150px;height:150px;border-radius:50%;border:4px solid #26305a;background:#ffd84d;font-size:64px;cursor:pointer;box-shadow:0 6px 0 #26305a;transition:transform .1s}
+.sp-speak:active{transform:translateY(4px);box-shadow:0 2px 0 #26305a}
+.sp-speak.talk{animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.06)}}
+.sp-tools{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
+.sp-in{display:block;width:100%;font:700 34px Fredoka,sans-serif !important;text-align:center;letter-spacing:3px;padding:14px !important;border:3px solid #26305a !important;border-radius:18px !important}
+.sp-in.ok{background:#e3f8f1 !important;border-color:var(--ok) !important}
+.sp-in.bad{background:#fde8eb !important;border-color:var(--bad) !important;animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.sp-fb{text-align:center;min-height:70px;margin-top:12px;font-size:18px}
+.sp-fb .big{font:700 30px Fredoka,sans-serif;letter-spacing:2px}
+.sp-fb .hintline{color:var(--muted);font-size:15px;margin-top:4px}
+.sp-diff span{padding:0 1px;border-radius:4px}
+.sp-diff .x{background:#ffd0d7;color:var(--bad)}
+.sp-stats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0}
+.sp-stats div{background:#fff6d6;border:2.5px solid #26305a;border-radius:16px;padding:10px 18px;text-align:center;min-width:100px}
+.sp-stats b{display:block;font:700 30px Fredoka,sans-serif}
+.sp-wrong{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center}
+.pop{position:fixed;pointer-events:none;font-size:28px;z-index:60;animation:pop 1s ease-out forwards}
+@keyframes pop{to{transform:translate(var(--dx),var(--dy)) rotate(260deg);opacity:0}}
 nav button[data-tab=grade].on{background:var(--pri)}
 nav button[data-tab=results].on{background:var(--mint)}
 nav button[data-tab=bank].on{background:var(--purple)}
@@ -164,6 +196,7 @@ tr.flag td{background:#fffbea}
   </div>
   <nav>
     <button data-tab="make" class="on">📝 出考卷</button>
+    <button data-tab="spell">🐝 拼字練習</button>
     <button data-tab="bank">📚 題庫</button>
   </nav>
 </div></header>
@@ -210,6 +243,58 @@ tr.flag td{background:#fffbea}
       <div class="hint" style="margin-top:6px">紀錄存在這台裝置的瀏覽器。換電腦或手機時，輸入範圍和 No. 一樣看得到同一份答案。</div>
     </div>
   </section>
+  <section id="tab-spell">
+    <div class="card sp-wrap" id="spSetup">
+      <div class="sp-hero"><span class="bee">🐝</span><h2>Spelling Bee 拼字練習</h2><div class="hint">聽老師唸兩次單字和例句，拼出這個字！</div></div>
+      <label class="f" style="margin-top:16px">練習範圍</label>
+      <div class="chips" id="spScope">
+        <button class="chip2 on" data-v="all">全部 1200 單</button>
+        <button class="chip2" data-v="letter">選字母</button>
+        <button class="chip2" data-v="range">自訂範圍</button>
+        <button class="chip2" data-v="wrong">📕 錯字本 <span id="spWrongN"></span></button>
+      </div>
+      <div id="spScopeMore" style="margin-top:10px"></div>
+      <label class="f" style="margin-top:16px">題數</label>
+      <div class="chips" id="spCount">
+        <button class="chip2" data-v="10">10 題</button>
+        <button class="chip2 on" data-v="20">20 題</button>
+        <button class="chip2" data-v="50">50 題</button>
+        <button class="chip2" data-v="0">全部</button>
+      </div>
+      <details>
+        <summary>聲音設定</summary>
+        <div class="grid2" style="margin-top:10px">
+          <div><label class="f">語速 <span id="spRateV"></span></label><input type="range" id="spRate" min="0.5" max="1.2" step="0.05" value="0.85" style="width:100%"></div>
+          <div><label class="f">聲音</label><select id="spVoice"></select></div>
+        </div>
+        <label class="switch" style="margin-top:10px"><input type="checkbox" id="spSent" checked> 唸完單字後唸例句</label>
+      </details>
+      <div style="text-align:center;margin-top:20px"><button class="btn big orange" id="spStart">▶ 開始練習</button></div>
+      <div class="hint" style="text-align:center;margin-top:10px" id="spBest"></div>
+    </div>
+
+    <div class="card sp-wrap" id="spPlay" style="display:none">
+      <div class="sp-top"><span id="spProg">第 1 / 20 題</span><span>⭐ <span id="spScore">0</span>　🔥 <span id="spStreak">0</span></span></div>
+      <div class="sp-bar"><i id="spBarI" style="width:0%"></i></div>
+      <button class="sp-speak" id="spSpeak" title="再唸一次">🔊</button>
+      <div class="sp-tools">
+        <button class="btn small ghost" id="spWord">🔊 只唸單字</button>
+        <button class="btn small ghost" id="spSlow">🐢 慢慢唸</button>
+        <button class="btn small ghost" id="spSentBtn">📖 例句</button>
+        <button class="btn small ghost" id="spHint">💡 提示</button>
+      </div>
+      <input type="text" class="sp-in" id="spIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type here">
+      <div class="sp-fb" id="spFb"></div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        <button class="btn big" id="spGo">✔ 送出</button>
+        <button class="btn ghost" id="spSkip">跳過</button>
+        <button class="linkbtn" id="spQuit">結束</button>
+      </div>
+    </div>
+
+    <div class="card sp-wrap" id="spEnd" style="display:none"></div>
+  </section>
+
   <section id="tab-bank">
     <div class="card">
       <h2>📚 1200 單題庫</h2>
@@ -555,6 +640,202 @@ $("#recList").onclick = e => {
   showRange(+b.dataset.no);
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
+
+// ---------- 🐝 拼字練習 ----------
+const SP = { scope: "all", count: 20, list: [], i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [], hinted: false, answered: false, tries: 0 };
+let spVoices = [];
+let spWrongBook = lsGet("vq_wrongbook", {}); // { key: 次數 }
+function spAnswers(w) { // 可接受的拼法
+  const out = new Set();
+  w.split("/").forEach(part => {
+    part = part.trim().replace(/^the\s+/i, m => m); 
+    const m = part.match(/^(.*?)\s*\((.*?)\)\s*(.*)$/);
+    if (m) {
+      const a = (m[1] + m[3]).trim(), b = (m[1] + m[2] + m[3]).trim();
+      out.add(a); out.add(b);
+      if (m[2].length > 1 && !/^[a-z]+$/.test(m[2]) || /^[A-Z]+$/.test(m[2])) out.add(m[2]); // television (TV)
+      if (/^an?$/.test(m[2])) out.add(m[2]);
+    } else out.add(part);
+  });
+  return [...out].filter(Boolean).map(spNorm);
+}
+function spNorm(s) { return String(s).toLowerCase().replace(/[’']/g, "'").replace(/\./g, "").replace(/\s+/g, " ").trim(); }
+function spSayText(w) { return w.replace(/\s*\((.*?)\)/g, ", $1").replace(/\//g, ", or "); }
+function spLoadVoices() {
+  spVoices = (speechSynthesis.getVoices() || []).filter(v => /^en(-|_)/i.test(v.lang));
+  const pref = ["Samantha", "Google US English", "Microsoft Aria", "Microsoft Jenny", "Alex", "Karen", "Daniel"];
+  spVoices.sort((a, b) => { const ia = pref.findIndex(p => a.name.includes(p)), ib = pref.findIndex(p => b.name.includes(p)); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a.lang === "en-US" ? -1 : 1); });
+  const saved = lsGet("vq_voice", "");
+  $("#spVoice").innerHTML = spVoices.map(v => `<option value="${esc(v.name)}" ${v.name === saved ? "selected" : ""}>${esc(v.name)}（${esc(v.lang)}）</option>`).join("") || `<option>（使用預設聲音）</option>`;
+}
+if ("speechSynthesis" in window) { spLoadVoices(); speechSynthesis.onvoiceschanged = spLoadVoices; }
+$("#spVoice").onchange = () => lsSet("vq_voice", $("#spVoice").value);
+$("#spRate").value = lsGet("vq_rate", 0.85);
+const spRateLabel = () => $("#spRateV").textContent = "×" + (+$("#spRate").value).toFixed(2);
+$("#spRate").oninput = () => { lsSet("vq_rate", +$("#spRate").value); spRateLabel(); }; spRateLabel();
+function speak(parts) { // parts: [{t, rate, pause}]
+  if (!("speechSynthesis" in window)) { toast("這個瀏覽器不支援朗讀"); return Promise.resolve(); }
+  speechSynthesis.cancel();
+  const v = spVoices.find(x => x.name === $("#spVoice").value) || spVoices[0];
+  const base = +$("#spRate").value;
+  $("#spSpeak").classList.add("talk");
+  return parts.reduce((p, part) => p.then(() => new Promise(res => {
+    if (part.pause) return setTimeout(res, part.pause);
+    const u = new SpeechSynthesisUtterance(part.t);
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+    u.rate = base * (part.rate || 1);
+    u.onend = u.onerror = () => res();
+    speechSynthesis.speak(u);
+  })), Promise.resolve()).then(() => $("#spSpeak").classList.remove("talk"));
+}
+function spCur() { return SP.list[SP.i]; }
+function spReadFull() {
+  const w = spCur(); if (!w) return;
+  const t = spSayText(bank[w].en);
+  const parts = [{ t }, { pause: 700 }, { t }];
+  const s = sents[w];
+  if ($("#spSent").checked && s) parts.push({ pause: 800 }, { t: s[0] }, { pause: 700 }, { t });
+  return speak(parts);
+}
+// 範圍選擇
+function spScopeUI() {
+  const v = SP.scope, box = $("#spScopeMore");
+  document.querySelectorAll("#spScope .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  if (v === "letter") {
+    const Ls = [...new Set(Object.keys(bank).map(k => splitKey(k)[0]))].sort();
+    const sel = lsGet("vq_spL", ["A"]);
+    box.innerHTML = `<div class="chips" id="spLetters">${Ls.map(L => `<button class="chip2 ${sel.includes(L) ? "on" : ""}" data-l="${L}">${L}</button>`).join("")}</div><div class="hint" style="margin-top:6px">可以選很多個字母</div>`;
+  } else if (v === "range") box.innerHTML = `<input type="text" id="spRange" placeholder="例如 T24-T63 或 A1-C20" value="${esc(lsGet("vq_spR", ""))}">`;
+  else if (v === "wrong") box.innerHTML = `<div class="hint">錯字本有 ${Object.keys(spWrongBook).length} 個字。拼錯的字會自動加進來，連續拼對 2 次就會移出。${Object.keys(spWrongBook).length ? ` <button class="linkbtn" id="spClearWrong">清空錯字本</button>` : ""}</div>`;
+  else box.innerHTML = "";
+  $("#spWrongN").textContent = Object.keys(spWrongBook).length ? `(${Object.keys(spWrongBook).length})` : "";
+  const best = lsGet("vq_spBest", 0); $("#spBest").textContent = best ? `🏆 最高分 ${best}` : "";
+}
+$("#spScope").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.scope = b.dataset.v; spScopeUI(); };
+$("#spScopeMore").onclick = e => {
+  const b = e.target.closest("[data-l]");
+  if (b) { b.classList.toggle("on"); lsSet("vq_spL", [...document.querySelectorAll("#spLetters .on")].map(x => x.dataset.l)); }
+  if (e.target.id === "spClearWrong") { spWrongBook = {}; lsSet("vq_wrongbook", spWrongBook); spScopeUI(); }
+};
+$("#spCount").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.count = +b.dataset.v; document.querySelectorAll("#spCount .chip2").forEach(x => x.classList.toggle("on", x === b)); };
+function spPool() {
+  const all = Object.keys(bank).sort(cmpKey);
+  if (SP.scope === "letter") { const sel = lsGet("vq_spL", []); return all.filter(k => sel.includes(splitKey(k)[0])); }
+  if (SP.scope === "range") { const r = $("#spRange").value.trim(); lsSet("vq_spR", r); const p = parseRange(r); return p ? all.filter(k => inRange(p, k)) : []; }
+  if (SP.scope === "wrong") return Object.keys(spWrongBook).filter(k => bank[k]);
+  return all;
+}
+function spStart(list) {
+  if (!Object.keys(bank).length) return toast("題庫還在載入，請稍等");
+  let pool = list || spPool();
+  if (!pool.length) return toast(SP.scope === "range" ? "範圍格式請寫成像 T24-T63" : SP.scope === "wrong" ? "錯字本是空的 🎉" : "請先選字母");
+  pool = pool.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  if (!list && SP.count) pool = pool.slice(0, SP.count);
+  Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [] });
+  $("#spSetup").style.display = "none"; $("#spEnd").style.display = "none"; $("#spPlay").style.display = "";
+  spShowQ();
+}
+function spShowQ() {
+  Object.assign(SP, { hinted: false, answered: false, tries: 0 });
+  $("#spProg").textContent = `第 ${SP.i + 1} / ${SP.list.length} 題`;
+  $("#spBarI").style.width = (SP.i / SP.list.length * 100) + "%";
+  $("#spScore").textContent = SP.score; $("#spStreak").textContent = SP.streak;
+  const inp = $("#spIn"); inp.value = ""; inp.className = "sp-in"; inp.disabled = false; inp.focus();
+  $("#spFb").innerHTML = ""; $("#spGo").textContent = "✔ 送出";
+  spReadFull();
+}
+function spDiff(typed, ans) {
+  return [...ans].map((c, i) => `<span class="${(typed[i] || "").toLowerCase() === c.toLowerCase() ? "" : "x"}">${esc(c)}</span>`).join("");
+}
+function beep(ok) {
+  try {
+    const ac = beep.ac || (beep.ac = new (window.AudioContext || window.webkitAudioContext)());
+    const notes = ok ? [660, 880] : [300, 220];
+    notes.forEach((f, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; o.type = "triangle"; g.gain.setValueAtTime(.15, ac.currentTime + i * .12); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + i * .12 + .25); o.connect(g).connect(ac.destination); o.start(ac.currentTime + i * .12); o.stop(ac.currentTime + i * .12 + .3); });
+  } catch {}
+}
+function confetti() {
+  const r = $("#spIn").getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement("span"); s.className = "pop"; s.textContent = ["⭐", "🎉", "✨", "🐝", "💛"][i % 5];
+    s.style.left = (r.left + r.width / 2) + "px"; s.style.top = (r.top) + "px";
+    s.style.setProperty("--dx", (Math.random() * 300 - 150) + "px"); s.style.setProperty("--dy", (-Math.random() * 220 - 40) + "px");
+    document.body.appendChild(s); setTimeout(() => s.remove(), 1000);
+  }
+}
+function spSubmit() {
+  if (SP.answered) return spNext();
+  const k = spCur(), w = bank[k], typed = $("#spIn").value.trim();
+  if (!typed) { $("#spIn").focus(); return; }
+  const ok = spAnswers(w.en).includes(spNorm(typed));
+  const inp = $("#spIn");
+  if (ok) {
+    const pts = SP.hinted ? 5 : SP.tries ? 6 : 10;
+    SP.streak++; SP.score += pts + (SP.streak >= 3 ? 2 : 0); SP.right++;
+    SP.best = Math.max(SP.best, SP.streak);
+    inp.className = "sp-in ok"; beep(true); confetti();
+    $("#spFb").innerHTML = `<div class="big" style="color:var(--ok)">✅ ${esc(w.en)}</div><div class="hintline">${esc(w.zh)}　+${pts}${SP.streak >= 3 ? "（連對加分 +2）" : ""}</div>`;
+    if (spWrongBook[k]) { spWrongBook[k]--; if (spWrongBook[k] <= 0) delete spWrongBook[k]; lsSet("vq_wrongbook", spWrongBook); }
+    SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
+  } else if (SP.tries === 0) {
+    SP.tries = 1; inp.className = "sp-in bad"; beep(false);
+    $("#spFb").innerHTML = `<div style="color:var(--bad);font-weight:700">差一點！再聽一次，再試一次 💪</div>`;
+    setTimeout(() => { inp.className = "sp-in"; inp.select(); }, 400);
+    spReadFull();
+  } else {
+    SP.streak = 0; inp.className = "sp-in bad"; beep(false);
+    SP.wrong.push({ k, typed });
+    spWrongBook[k] = 2; lsSet("vq_wrongbook", spWrongBook); // 要再連續拼對 2 次才移出
+    $("#spFb").innerHTML = `<div class="hintline">你拼的：<span class="sp-diff">${esc(typed)}</span></div><div class="big sp-diff">❌ ${spDiff(typed, w.en)}</div><div class="hintline">${esc(w.zh)}　已加入錯字本</div>`;
+    SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
+    speak([{ t: spSayText(w.en) }]);
+  }
+  $("#spScore").textContent = SP.score; $("#spStreak").textContent = SP.streak;
+}
+function spNext() {
+  SP.i++;
+  if (SP.i >= SP.list.length) return spEnd();
+  spShowQ();
+}
+function spEnd() {
+  speechSynthesis && speechSynthesis.cancel();
+  $("#spPlay").style.display = "none";
+  const n = SP.i, acc = n ? Math.round(SP.right / n * 100) : 0;
+  const prev = lsGet("vq_spBest", 0), isBest = SP.score > prev; if (isBest) lsSet("vq_spBest", SP.score);
+  const medal = acc >= 90 ? "🏆" : acc >= 70 ? "🥈" : acc >= 50 ? "🥉" : "💪";
+  $("#spEnd").style.display = "";
+  $("#spEnd").innerHTML = `<div class="sp-hero"><span class="bee">${medal}</span><h2>${acc >= 90 ? "Amazing!" : acc >= 70 ? "Great job!" : acc >= 50 ? "Good try!" : "Keep going!"}</h2>${isBest ? `<div style="color:var(--acc);font-weight:700">🎉 新的最高分！</div>` : ""}</div>
+    <div class="sp-stats"><div><b>${SP.score}</b>分數</div><div><b>${SP.right}/${n}</b>答對</div><div><b>${acc}%</b>正確率</div><div><b>${SP.best}</b>最長連對</div></div>
+    ${SP.wrong.length ? `<h2 style="margin-top:16px">📕 這次拼錯的字</h2><div class="sp-wrong">${SP.wrong.map(x => `<button class="btn small ghost" data-say="${esc(x.k)}">🔊</button><div><b style="font-size:18px">${esc(bank[x.k].en)}</b>　<span class="hint">${esc(bank[x.k].zh)}｜你拼：${esc(x.typed)}</span></div><span class="hint">${esc(x.k)}</span>`).join("")}</div>` : `<div class="okmsg" style="text-align:center">全部拼對，太厲害了！</div>`}
+    <div class="row" style="justify-content:center;margin-top:20px">
+      ${SP.wrong.length ? `<button class="btn big orange" id="spRetryWrong">🔁 再練拼錯的字</button>` : ""}
+      <button class="btn big" id="spAgain">▶ 再玩一次</button>
+      <button class="btn ghost" id="spBack">回設定</button>
+    </div>`;
+}
+$("#spEnd").onclick = e => {
+  const s = e.target.closest("[data-say]"); if (s) { const w = bank[s.dataset.say]; const t = spSayText(w.en); speak([{ t }, { pause: 500 }, { t, rate: .7 }]); return; }
+  if (e.target.id === "spRetryWrong") spStart(SP.wrong.map(x => x.k));
+  if (e.target.id === "spAgain") spStart();
+  if (e.target.id === "spBack") { $("#spEnd").style.display = "none"; $("#spSetup").style.display = ""; spScopeUI(); }
+};
+$("#spStart").onclick = () => spStart();
+$("#spSpeak").onclick = () => spReadFull();
+$("#spWord").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t }]); $("#spIn").focus(); };
+$("#spSlow").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t, rate: .6 }]); $("#spIn").focus(); };
+$("#spSentBtn").onclick = () => { const s = sents[spCur()]; if (!s) return toast("這個字沒有例句"); speak([{ t: s[0] }]); $("#spIn").focus(); };
+$("#spHint").onclick = () => {
+  if (SP.answered) return;
+  const w = bank[spCur()]; SP.hinted = true;
+  $("#spFb").innerHTML = `<div class="hintline">💡 ${esc(w.zh)}｜開頭是 <b style="font-size:22px">${esc(w.en[0])}</b>，共 ${w.en.replace(/[^A-Za-z]/g, "").length} 個字母</div>`;
+  $("#spIn").focus();
+};
+$("#spGo").onclick = spSubmit;
+$("#spSkip").onclick = () => { if (SP.answered) return spNext(); SP.tries = 1; $("#spIn").value = $("#spIn").value || "(skip)"; spSubmit(); };
+$("#spQuit").onclick = () => spEnd();
+$("#spIn").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); spSubmit(); } });
+document.addEventListener("keydown", e => { if (e.key === "Enter" && SP.answered && $("#spPlay").style.display !== "none" && document.activeElement !== $("#spIn")) spNext(); });
+document.querySelector('nav button[data-tab=spell]').addEventListener("click", spScopeUI);
 
 // ---------- 載入 ----------
 Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").then(r => r.json()).catch(() => ({}))]).then(([b, s]) => {
