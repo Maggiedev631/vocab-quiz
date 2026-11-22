@@ -673,20 +673,35 @@ $("#spVoice").onchange = () => lsSet("vq_voice", $("#spVoice").value);
 $("#spRate").value = lsGet("vq_rate", 0.85);
 const spRateLabel = () => $("#spRateV").textContent = "×" + (+$("#spRate").value).toFixed(2);
 $("#spRate").oninput = () => { lsSet("vq_rate", +$("#spRate").value); spRateLabel(); }; spRateLabel();
+let spUnlocked = false;
+function spUnlock() { // iPhone/iPad：要在「點按的當下」先出聲一次，之後才能自動朗讀
+  if (spUnlocked || !("speechSynthesis" in window)) return;
+  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0.01; speechSynthesis.speak(u); spUnlocked = true; } catch {}
+  if (!spVoices.length) spLoadVoices();
+}
 function speak(parts) { // parts: [{t, rate, pause}]
-  if (!("speechSynthesis" in window)) { toast("這個瀏覽器不支援朗讀"); return Promise.resolve(); }
-  speechSynthesis.cancel();
-  const v = spVoices.find(x => x.name === $("#spVoice").value) || spVoices[0];
+  if (!("speechSynthesis" in window)) { toast("這個瀏覽器不支援朗讀，請用 Safari 或 Chrome 打開"); return Promise.resolve(); }
+  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+  const v = spVoices.find(x => x.name === $("#spVoice").value) || spVoices.find(x => x.lang === "en-US") || spVoices[0];
   const base = +$("#spRate").value;
+  const token = (speak.token = (speak.token || 0) + 1);
   $("#spSpeak").classList.add("talk");
-  return parts.reduce((p, part) => p.then(() => new Promise(res => {
+  const say = part => new Promise(res => {
+    if (token !== speak.token) return res();
     if (part.pause) return setTimeout(res, part.pause);
     const u = new SpeechSynthesisUtterance(part.t);
-    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+    if (v) u.voice = v;
+    u.lang = v ? v.lang : "en-US";
     u.rate = base * (part.rate || 1);
-    u.onend = u.onerror = () => res();
-    speechSynthesis.speak(u);
-  })), Promise.resolve()).then(() => $("#spSpeak").classList.remove("talk"));
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    u.onend = u.onerror = fin;
+    setTimeout(fin, 3000 + part.t.length * 180); // 保險：有些手機不會回報 onend
+    speechSynthesis.speak(u); // 第一句在點按當下同步送出（iOS 需要）
+    if (speechSynthesis.paused) speechSynthesis.resume();
+  });
+  let p = say(parts[0]);
+  parts.slice(1).forEach(part => { p = p.then(() => say(part)); });
+  return p.then(() => { if (token === speak.token) $("#spSpeak").classList.remove("talk"); });
 }
 function spCur() { return SP.list[SP.i]; }
 function spReadFull() {
@@ -819,8 +834,9 @@ $("#spEnd").onclick = e => {
   if (e.target.id === "spAgain") spStart();
   if (e.target.id === "spBack") { $("#spEnd").style.display = "none"; $("#spSetup").style.display = ""; spScopeUI(); }
 };
-$("#spStart").onclick = () => spStart();
-$("#spSpeak").onclick = () => spReadFull();
+$("#spStart").onclick = () => { spUnlock(); spStart(); };
+document.addEventListener("touchend", spUnlock, { once: true });
+$("#spSpeak").onclick = () => { spUnlock(); spReadFull(); };
 $("#spWord").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t }]); $("#spIn").focus(); };
 $("#spSlow").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t, rate: .6 }]); $("#spIn").focus(); };
 $("#spSentBtn").onclick = () => { const s = sents[spCur()]; if (!s) return toast("這個字沒有例句"); speak([{ t: s[0] }]); $("#spIn").focus(); };
