@@ -361,8 +361,17 @@ function statRows() {
   return STU.filter(s => (!cls || s.cls === cls) && (!q || s.name.includes(q))).map(s => {
     const rs = res.filter(r => r.sid === s.sid);
     const n = rs.reduce((a, r) => a + (r.n || 0), 0), right = rs.reduce((a, r) => a + (r.right || 0), 0);
-    return { s, rounds: rs.length, n, right, acc: n ? Math.round(right / n * 100) : -1, score: rs.reduce((a, r) => a + (r.score || 0), 0), t: rs[0] ? rs[0].t : 0, rs };
+    const wp = wordProg(s.sid);
+    return { s, rounds: rs.length, n, right, acc: n ? Math.round(right / n * 100) : -1, score: rs.reduce((a, r) => a + (r.score || 0), 0), t: rs[0] ? rs[0].t : 0, rs, tested: wp.tested, weak: wp.weak };
   });
+}
+// 依所有練習紀錄算每個學生考過哪些字、哪些最後一次還是錯的（不熟）
+function wordProg(sid) {
+  const rs = RES.filter(r => r.sid === sid).slice().sort((a, b) => a.t - b.t);
+  const last = {};
+  rs.forEach(r => { const wrong = new Set((r.wrong || []).map(w => w.k)); (r.words || []).forEach(k => { last[k] = wrong.has(k) ? 0 : 1; }); (r.wrong || []).forEach(w => { last[w.k] = 0; }); });
+  const ks = Object.keys(last);
+  return { tested: ks.length, weak: ks.filter(k => !last[k]).length, last };
 }
 function renderRec() {
   const rows = statRows();
@@ -370,8 +379,8 @@ function renderRec() {
   const active = rows.filter(r => r.rounds), totN = rows.reduce((a, r) => a + r.n, 0), totR = rows.reduce((a, r) => a + r.right, 0);
   $("#recStat").innerHTML = `<div><b>${active.length}/${rows.length}</b>有練習的學生</div><div><b>${rows.reduce((a, r) => a + r.rounds, 0)}</b>練習次數</div><div><b>${totN}</b>練習字數</div><div><b>${totN ? Math.round(totR / totN * 100) + "%" : "—"}</b>平均正確率</div>`;
   const th = (k, t) => `<th data-k="${k}">${t}${sortK === k ? (sortDir > 0 ? " ▲" : " ▼") : ""}</th>`;
-  $("#recTbl").innerHTML = `<tr>${th("name", "名字")}<th>班級</th>${th("rounds", "練習次數")}${th("n", "練習字數")}${th("acc", "正確率")}${th("score", "總分")}${th("t", "最後練習")}</tr>` +
-    (rows.length ? rows.map(r => `<tr class="click" data-sid="${esc(r.s.sid)}"><td><b>${esc(r.s.name)}</b></td><td>${esc(r.s.cls || "")}</td><td>${r.rounds || '<span class="hint">還沒練習</span>'}</td><td>${r.n || ""}</td><td>${r.acc >= 0 ? `<span class="${accCls(r.acc)}">${r.acc}%</span>` : ""}</td><td>${r.score || ""}</td><td>${r.t ? esc(fmtTime(r.t)) : ""}</td></tr>`).join("") : `<tr><td colspan="7" class="hint">還沒有學生，先到「學生帳號」新增</td></tr>`);
+  $("#recTbl").innerHTML = `<tr>${th("name", "名字")}<th>班級</th>${th("rounds", "練習次數")}${th("tested", "考過幾個字")}${th("weak", "不熟")}${th("n", "練習字數")}${th("acc", "正確率")}${th("score", "總分")}${th("t", "最後練習")}</tr>` +
+    (rows.length ? rows.map(r => `<tr class="click" data-sid="${esc(r.s.sid)}"><td><b>${esc(r.s.name)}</b></td><td>${esc(r.s.cls || "")}</td><td>${r.rounds || '<span class="hint">還沒練習</span>'}</td><td>${r.tested ? r.tested + " / 1198" : ""}</td><td>${r.weak ? `<span class="acc-lo">${r.weak}</span>` : ""}</td><td>${r.n || ""}</td><td>${r.acc >= 0 ? `<span class="${accCls(r.acc)}">${r.acc}%</span>` : ""}</td><td>${r.score || ""}</td><td>${r.t ? esc(fmtTime(r.t)) : ""}</td></tr>`).join("") : `<tr><td colspan="9" class="hint">還沒有學生，先到「學生帳號」新增</td></tr>`);
 }
 ["recCls", "recDays", "recQ"].forEach(id => $("#" + id).addEventListener("input", renderRec));
 $("#recTbl").onclick = e => {
@@ -380,8 +389,12 @@ $("#recTbl").onclick = e => {
   const s = STU.find(x => x.sid === tr.dataset.sid); const rs = RES.filter(r => r.sid === s.sid);
   const wc = {}; rs.forEach(r => (r.wrong || []).forEach(w => { wc[w.w] = (wc[w.w] || 0) + 1; }));
   const top = Object.entries(wc).sort((a, b) => b[1] - a[1]).slice(0, 20);
+  const wp = wordProg(s.sid);
+  const BANKW = {}; rs.forEach(r => (r.wrong || []).forEach(w => BANKW[w.k] = w.w));
+  const weakList = Object.keys(wp.last).filter(k => !wp.last[k]).sort(cmpKey);
   openModal(`<h2 style="margin:0">${esc(s.name)} <span class="hint">${esc(s.cls || "")}</span></h2>
-    <div class="hint">共練習 ${rs.length} 次</div>
+    <div class="hint">共練習 ${rs.length} 次｜考過 ${wp.tested} 個字（全部 1198）｜目前不熟 ${weakList.length} 個</div>
+    ${weakList.length ? `<h3 style="margin:14px 0 6px">目前不熟的字（最後一次還是拼錯）</h3><div>${weakList.map(k => `<span class="wchip">${esc(BANKW[k] || k)} <small>${esc(k)}</small></span>`).join("")}</div>` : ""}
     ${top.length ? `<h3 style="margin:14px 0 6px">常拼錯的字</h3><div>${top.map(([w, c]) => `<span class="wchip">${esc(w)} ×${c}</span>`).join("")}</div>` : ""}
     <h3 style="margin:16px 0 6px">每次練習</h3>
     <table class="tbl"><tr><th>時間</th><th>範圍</th><th>答對</th><th>正確率</th><th>分數</th><th>拼錯的字</th></tr>
@@ -391,7 +404,7 @@ $("#recTbl").onclick = e => {
 };
 $("#recCopy").onclick = async () => {
   const rows = statRows().sort((a, b) => sortStu(a.s, b.s));
-  const txt = ["名字\t班級\t練習次數\t練習字數\t正確率\t總分\t最後練習", ...rows.map(r => [r.s.name, r.s.cls || "", r.rounds, r.n, r.acc >= 0 ? r.acc + "%" : "", r.score, r.t ? fmtTime(r.t) : ""].join("\t"))].join("\n");
+  const txt = ["名字\t班級\t練習次數\t考過幾個字\t不熟\t練習字數\t正確率\t總分\t最後練習", ...rows.map(r => [r.s.name, r.s.cls || "", r.rounds, r.tested, r.weak, r.n, r.acc >= 0 ? r.acc + "%" : "", r.score, r.t ? fmtTime(r.t) : ""].join("\t"))].join("\n");
   try { await navigator.clipboard.writeText(txt); toast("已複製，可貼到 Excel"); } catch { toast("無法複製"); }
 };
 
@@ -430,7 +443,17 @@ $("#accCls").oninput = renderAcc;
 $("#accTbl").addEventListener("change", async e => {
   const t = e.target, v = t.value.trim();
   try {
-    if (t.dataset.pw) { if (v.length < 3) { toast("密碼至少 3 個字"); t.value = SEC[t.dataset.pw] || ""; return; } await db.collection("vq_secrets").doc(t.dataset.pw).set({ pw: v }); toast("密碼已更新 ✓"); }
+    if (t.dataset.pw) {
+      if (v.length < 3 || v.includes("__")) { toast("密碼至少 3 個字，不能有 __"); t.value = SEC[t.dataset.pw] || ""; return; }
+      const sid = t.dataset.pw, old = SEC[sid];
+      await db.collection("vq_secrets").doc(sid).set({ pw: v });
+      // 學習進度的文件名含密碼，改密碼時一起搬過去
+      if (old && old !== v) {
+        try { const s = await db.collection("vq_progress").doc(sid + "__" + old).get();
+          if (s.exists) { await db.collection("vq_progress").doc(sid + "__" + v).set(s.data()); await db.collection("vq_progress").doc(sid + "__" + old).delete(); } } catch (e) { }
+      }
+      toast("密碼已更新 ✓");
+    }
     if (t.dataset.name) { if (!v) return; await db.collection("vq_students").doc(t.dataset.name).update({ name: v }); toast("已更新 ✓"); }
     if (t.dataset.cls != null && t.dataset.cls !== undefined && t.hasAttribute("data-cls")) { await db.collection("vq_students").doc(t.dataset.cls).update({ cls: v }); toast("已更新 ✓"); }
   } catch (er) { toast("存檔失敗：" + (er.code || er.message)); }
@@ -471,6 +494,13 @@ service cloud.firestore {
     match /vq_students/{sid} { allow read: if true; allow write: if isTeacher(); }
     match /vq_secrets/{sid}  { allow read, write: if isTeacher(); }
     match /vq_login/{sid}    { allow read, delete: if isTeacher(); allow create, update: if pwOk(sid); }
+    // 學生自己的學習進度：文件 id 是「學生id__密碼」，密碼對才讀寫得到
+    match /vq_progress/{pid} {
+      allow read, delete: if isTeacher();
+      allow get, create, update: if pid.split('__').size() == 2
+        && exists(/databases/$(database)/documents/vq_secrets/$(pid.split('__')[0]))
+        && get(/databases/$(database)/documents/vq_secrets/$(pid.split('__')[0])).data.pw == pid.split('__')[1];
+    }
     match /vq_results/{id}   {
       allow read, delete: if isTeacher();
       allow create: if request.resource.data.sid is string && pwOk(request.resource.data.sid);

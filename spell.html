@@ -43,6 +43,25 @@ nav button.on{color:#fff}
 nav button[data-tab=make].on{background:var(--acc)}
 nav button[data-tab=spell].on{background:#f5b700;color:#26305a}
 /* ---------- 拼字練習 ---------- */
+
+/* ---------- 進度統計 ---------- */
+.st-wrap{border:3px solid #26305a;border-radius:20px;padding:14px 16px;margin-top:16px;background:#fffdf3}
+.st-title{font-weight:900;font-size:17px;margin-bottom:8px}
+.st-bar,.st-mini{display:flex;height:16px;border-radius:99px;overflow:hidden;background:#ece6d8;border:2px solid #26305a}
+.st-mini{height:9px;border-width:1.5px;flex:1}
+.st-bar i,.st-mini i{display:block;height:100%}
+.st-bar .g,.st-mini .g{background:#2ec4a6} .st-bar .l,.st-mini .l{background:#ffd84d} .st-bar .w,.st-mini .w{background:#ff6b81}
+.st-nums{display:flex;justify-content:space-around;margin-top:10px;text-align:center;font-size:13px;color:var(--muted)}
+.st-nums b{display:block;font:700 26px Fredoka,sans-serif;color:#26305a}
+.st-nums .g b{color:#14a37f} .st-nums .w b{color:#e8435a}
+.st-letters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin-top:12px}
+.st-l{display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 6px;border-radius:10px}
+.st-l:hover{background:#fff0c2}
+.st-l b{font:700 16px Fredoka,sans-serif;width:18px}
+.st-l small{color:var(--muted);font-size:12px;min-width:48px;text-align:right}
+.st-words{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.st-w{border-radius:999px;padding:3px 10px;font:600 14px Fredoka,sans-serif;border:1.5px solid #ddd;background:#fff}
+.st-w.g{background:#e3f8f1;border-color:#2ec4a6} .st-w.l{background:#fff4c2;border-color:#ffd84d} .st-w.w{background:#fde8eb;border-color:#ff6b81;color:#c0213a} .st-w.u{color:#999}
 /* ---------- 先學再考 ---------- */
 .ln-card{border:3px solid #26305a;border-radius:22px;background:linear-gradient(180deg,#fffdf3,#fff6d6);padding:22px 16px;text-align:center;margin:14px 0;box-shadow:0 5px 0 rgba(38,48,90,.18)}
 .ln-no{display:inline-block;background:#26305a;color:#fff;border-radius:999px;padding:2px 12px;font:700 14px Fredoka,sans-serif}
@@ -260,6 +279,7 @@ nav button[data-tab=review].on{background:var(--purple)}
   <section id="tab-spell">
     <div class="card sp-wrap" id="spSetup">
       <div class="sp-hero"><span class="bee">🐝</span><h2>Spelling Bee 拼字練習</h2><div class="hint">聽老師唸兩次單字和例句，拼出這個字！</div></div>
+      <div id="spStats"></div>
       <label class="f" style="margin-top:16px">練習範圍</label>
       <div class="chips" id="spScope">
         <button class="chip2 on" data-v="all">全部 1200 單</button>
@@ -277,8 +297,16 @@ nav button[data-tab=review].on{background:var(--purple)}
       </div>
       <label class="f" style="margin-top:16px">練習方式</label>
       <div class="chips" id="spMode">
-        <button class="chip2" data-v="learn">📚 先學再考（每 5 個字一組）</button>
+        <button class="chip2" data-v="learn">📚 先學再考</button>
         <button class="chip2" data-v="test">⚡ 直接考</button>
+      </div>
+      <div id="lnSizeBox">
+        <label class="f" style="margin-top:12px">每組幾個字</label>
+        <div class="chips" id="lnSize">
+          <button class="chip2" data-v="5">5 個</button>
+          <button class="chip2" data-v="10">10 個</button>
+          <button class="chip2" data-v="20">20 個</button>
+        </div>
       </div>
       <details>
         <summary>聲音設定</summary>
@@ -443,6 +471,7 @@ $("#loginBtn").onclick = async () => {
 $("#pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#loginBtn").click(); });
 function afterLogin() {
   spWrongBook = lsGet(wbKey(), {});
+  progLoad(); progPull();
   $("#who").innerHTML = `👋 ${esc(ME.name)} <button class="linkbtn" id="logout">不是我</button>`;
   show("tab-spell"); spScopeUI();
 }
@@ -466,6 +495,7 @@ async function spRecord() {
     wrong: SP.wrong.map(x => ({ k: x.k, w: bank[x.k] ? bank[x.k].en : x.k, typed: x.typed })),
     words: SP.done.slice(0, n), secs: Math.round((Date.now() - (SP.t0 || Date.now())) / 1000), t: Date.now()
   };
+  progPush();
   try { await db.collection("vq_results").add(rec); toast("✅ 成績已傳給老師"); }
   catch (e) { SP.saved = false; toast("⚠️ 成績沒有傳出去，請重新登入"); }
 }
@@ -580,6 +610,7 @@ function spReadFull() {
 }
 // 範圍選擇
 function spScopeUI() {
+  renderStats();
   const v = SP.scope, box = $("#spScopeMore");
   document.querySelectorAll("#spScope .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   if (v === "letter") {
@@ -610,12 +641,13 @@ function spStart(list) {
   if (!Object.keys(bank).length) return toast("題庫還在載入，請稍等");
   let pool = list || spPool();
   if (!pool.length) return toast(SP.scope === "range" ? "範圍格式請寫成像 T24-T63" : SP.scope === "wrong" ? "錯字本是空的 🎉" : "請先選字母");
-  pool = pool.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  if (!list && SP.count) pool = pool.slice(0, SP.count);
+  // 出題：依熟悉度挑字（不熟的、沒考過的比較常出），題目順序一律打亂
+  pool = list ? shuffleArr(list) : shuffleArr(pickWeighted(pool, SP.count));
   Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [], done: [], label: list ? "再練拼錯的字" : spScopeLabel() + (SP.mode === "learn" ? "（先學再考）" : ""), t0: Date.now(), saved: false });
   $("#spSetup").style.display = "none"; $("#spEnd").style.display = "none"; $("#spPlay").style.display = "";
   const first = SP.list.slice(0, 3);
-  SP.learnOn = SP.mode === "learn" && !list; // 「再練拼錯的字」直接考
+  SP.learnOn = SP.forceLearn || (SP.mode === "learn" && !list && !SP.forceDirect); // 「再練拼錯的字」「練不熟的字」直接考
+  SP.forceLearn = SP.forceDirect = false;
   if (SP.learnOn) { lnStart(0); return; }
   Promise.race([Promise.all(first.map(fetchAud)), new Promise(r => setTimeout(r, 1500))]).then(spShowQ);
 }
@@ -657,7 +689,7 @@ function spSubmit() {
   if (ok) {
     // 計分：第一次就對 +2；第二次才對（或用了提示）+1
     const pts = (SP.tries || SP.hinted) ? 1 : 2;
-    SP.streak++; SP.score += pts; SP.right++;
+    SP.streak++; SP.score += pts; SP.right++; progMark(k, true);
     SP.best = Math.max(SP.best, SP.streak);
     inp.className = "sp-in ok"; beep(true); confetti();
     $("#spFb").innerHTML = `<div class="big" style="color:var(--ok)">✅ ${esc(w.en)}</div><div class="hintline">${esc(w.zh)}　⭐ +${pts}</div>`;
@@ -671,7 +703,7 @@ function spSubmit() {
   } else {
     SP.streak = 0; inp.className = "sp-in bad"; beep(false);
     const lost = SP.score > 0 ? 1 : 0; SP.score -= lost; // 答錯扣 1 分（最低 0 分）
-    SP.wrong.push({ k, typed });
+    SP.wrong.push({ k, typed }); progMark(k, false);
     spWrongBook[k] = 2; lsSet(wbKey(), spWrongBook); // 要再連續拼對 2 次才移出
     $("#spFb").innerHTML = `<div class="hintline">你拼的：<span class="sp-diff">${esc(typed)}</span></div><div class="big sp-diff">❌ ${spDiff(typed, w.en)}</div><div class="hintline">${esc(w.zh)}　${lost ? "⭐ −1　" : ""}已加入錯字本</div>`;
     SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
@@ -683,7 +715,7 @@ function spNext() {
   SP.done.push(spCur());
   SP.i++;
   if (SP.i >= SP.list.length) return spEnd();
-  if (SP.learnOn && SP.i % LN_SIZE === 0) return lnStart(SP.i);
+  if (SP.learnOn && SP.i % SP.lnSize === 0) return lnStart(SP.i);
   spShowQ();
 }
 function spEnd() {
@@ -711,19 +743,25 @@ $("#spEnd").onclick = e => {
 };
 
 // ---------- 📚 先學再考：每 5 個字一組，先看、聽、跟著打，再考這 5 個 ----------
-const LN_SIZE = 5;
 SP.mode = lsGet("vq_spMode", "learn");
-function spModeUI() { document.querySelectorAll("#spMode .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === SP.mode)); }
+SP.lnSize = lsGet("vq_lnSize", 5);
+function spModeUI() {
+  document.querySelectorAll("#spMode .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === SP.mode));
+  document.querySelectorAll("#lnSize .chip2").forEach(b => b.classList.toggle("on", +b.dataset.v === SP.lnSize));
+  $("#lnSizeBox").style.display = SP.mode === "learn" ? "" : "none";
+}
+$("#lnSize").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.lnSize = +b.dataset.v; lsSet("vq_lnSize", SP.lnSize); spModeUI(); };
 $("#spMode").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.mode = b.dataset.v; lsSet("vq_spMode", SP.mode); spModeUI(); };
 spModeUI();
 function lnStart(from) {
-  SP.lnFrom = from; SP.lnI = 0; SP.lnList = SP.list.slice(from, from + LN_SIZE);
+  SP.lnFrom = from; SP.lnI = 0; SP.lnList = SP.list.slice(from, from + SP.lnSize).sort(cmpKey); // 學習時照編號順序
   $("#spPlay").style.display = "none"; $("#spLearn").style.display = "";
   lnShow();
 }
 function lnShow() {
   const k = SP.lnList[SP.lnI], w = bank[k], s = sents[k];
-  const grp = Math.floor(SP.lnFrom / LN_SIZE) + 1, grps = Math.ceil(SP.list.length / LN_SIZE);
+  progLearn(k);
+  const grp = Math.floor(SP.lnFrom / SP.lnSize) + 1, grps = Math.ceil(SP.list.length / SP.lnSize);
   $("#lnProg").textContent = `📚 第 ${grp}/${grps} 組｜學習 ${SP.lnI + 1} / ${SP.lnList.length}`;
   $("#lnDots").innerHTML = SP.lnList.map((_, i) => `<i class="${i <= SP.lnI ? "on" : ""}"></i>`).join("");
   $("#lnBody").innerHTML = `
@@ -769,7 +807,7 @@ function lnNext() {
 }
 function lnBeginTest() {
   // 把這一組在題目清單中打亂順序，再開始考
-  const a = SP.list.slice(SP.lnFrom, SP.lnFrom + LN_SIZE);
+  const a = SP.list.slice(SP.lnFrom, SP.lnFrom + SP.lnSize);
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   SP.list.splice(SP.lnFrom, a.length, ...a);
   $("#spLearn").style.display = "none"; $("#spPlay").style.display = "";
@@ -796,6 +834,95 @@ $("#spLearn").addEventListener("input", e => {
   } else e.target.className = "sp-in";
 });
 $("#spLearn").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "lnIn") { e.preventDefault(); e.stopPropagation(); lnNext(); } });
+
+// ---------- 📈 學習進度（每個字：考過幾次、對幾次、錯幾次、連對、最後時間、看過學習卡） ----------
+const progKey = () => "vq_prog_" + ((typeof ME !== "undefined" && ME) ? ME.sid : "self");
+let PROG = {}; // k: [seen, correct, wrong, streak, lastT(sec), learned]
+function progLoad() { PROG = lsGet(progKey(), {}); }
+// 雲端同步：文件 id = 學生 id + "__" + 密碼，規則會檢查密碼，所以只有本人（和老師）讀寫得到
+const progDoc = () => db.collection("vq_progress").doc(ME.sid + "__" + ME.pw);
+async function progPull() {
+  try {
+    const s = await progDoc().get(); if (!s.exists) return;
+    const cloud = (s.data() || {}).p || {};
+    for (const k in cloud) { const a = cloud[k], b = PROG[k]; if (!b || (a[0] + a[5]) > (b[0] + b[5]) || (a[4] || 0) > (b[4] || 0)) PROG[k] = a; }
+    progSave(); renderStats();
+  } catch (e) { /* 規則還沒更新時讀不到，先用本機紀錄 */ }
+}
+async function progPush() {
+  if (!ME) return;
+  try { await progDoc().set({ p: PROG, sid: ME.sid, name: ME.name, cls: ME.cls || "", t: Date.now() }); } catch (e) { }
+}
+function progSave() { lsSet(progKey(), PROG); }
+function progGet(k) { return PROG[k] || [0, 0, 0, 0, 0, 0]; }
+function progMark(k, ok) {
+  const p = progGet(k).slice();
+  p[0]++; if (ok) { p[1]++; p[3]++; } else { p[2]++; p[3] = 0; }
+  p[4] = Math.floor(Date.now() / 1000); p[5] = 1; PROG[k] = p; progSave();
+}
+function progLearn(k) { const p = progGet(k).slice(); if (!p[5]) { p[5] = 1; PROG[k] = p; progSave(); } }
+const isWeak = k => { const p = PROG[k]; return !!p && p[2] > 0 && p[3] < 2; }; // 錯過、而且還沒連對 2 次
+const isSeen = k => { const p = PROG[k]; return !!p && (p[0] > 0 || p[5]); };
+function progStats(keys) {
+  let seen = 0, weak = 0, good = 0;
+  keys.forEach(k => { if (isSeen(k)) { seen++; if (isWeak(k)) weak++; else if (progGet(k)[0] > 0) good++; } });
+  return { total: keys.length, seen, weak, good, learnOnly: seen - weak - good, unseen: keys.length - seen };
+}
+// 依熟悉度挑字：沒考過的、不熟的比較容易出現；很熟、剛考過的比較少出現
+function pickWeighted(pool, n) {
+  const now = Date.now() / 1000;
+  const scored = pool.map(k => {
+    const p = PROG[k]; let w;
+    if (!p || !p[0]) w = 3;                 // 還沒考過
+    else if (isWeak(k)) w = 4 + p[2];       // 不熟：錯越多越常出
+    else w = Math.max(0.25, 1.2 - 0.3 * p[3]); // 已經會：連對越多越少出
+    if (p && p[4] && now - p[4] < 3600) w *= 0.3; // 一小時內剛考過，先少出
+    return { k, r: Math.pow(Math.random(), 1 / w) };
+  });
+  scored.sort((a, b) => b.r - a.r);
+  return (n ? scored.slice(0, n) : scored).map(x => x.k);
+}
+function shuffleArr(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function renderStats() {
+  const box = $("#spStats"); if (!box) return;
+  const all = Object.keys(bank).sort(cmpKey); if (!all.length) { box.innerHTML = ""; return; }
+  const s = progStats(all), pct = x => (x / s.total * 100).toFixed(1) + "%";
+  const Ls = [...new Set(all.map(k => splitKey(k)[0]))].sort();
+  box.innerHTML = `
+    <div class="st-wrap">
+      <div class="st-title">📈 我的 1200 單進度</div>
+      <div class="st-bar"><i class="g" style="width:${pct(s.good)}"></i><i class="l" style="width:${pct(s.learnOnly)}"></i><i class="w" style="width:${pct(s.weak)}"></i></div>
+      <div class="st-nums">
+        <div><b>${s.seen}</b>學過</div>
+        <div class="g"><b>${s.good}</b>會了</div>
+        <div class="w"><b>${s.weak}</b>不熟</div>
+        <div><b>${s.unseen}</b>還沒學</div>
+      </div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        ${s.weak ? `<button class="btn small orange" id="stWeak">🎯 練不熟的字（${s.weak}）</button>` : ""}
+        ${s.unseen ? `<button class="btn small" id="stNew">🆕 學新的字</button>` : ""}
+        <button class="linkbtn" id="stMore">各字母進度 ▾</button>
+      </div>
+      <div id="stDetail" style="display:none">
+        <div class="st-letters">${Ls.map(L => { const ks = all.filter(k => splitKey(k)[0] === L), t = progStats(ks);
+          return `<div class="st-l" data-l="${L}" title="點一下看清單"><b>${L}</b><span class="st-mini"><i class="g" style="width:${t.good / t.total * 100}%"></i><i class="l" style="width:${t.learnOnly / t.total * 100}%"></i><i class="w" style="width:${t.weak / t.total * 100}%"></i></span><small>${t.seen}/${t.total}</small></div>`; }).join("")}</div>
+        <div class="hint" style="margin-top:6px">🟩 會了　🟨 看過還沒考　🟥 不熟　⬜ 還沒學</div>
+        <div id="stList"></div>
+      </div>
+    </div>`;
+}
+document.addEventListener("click", e => {
+  const id = e.target.id;
+  if (id === "stMore") { const d = $("#stDetail"); d.style.display = d.style.display === "none" ? "" : "none"; return; }
+  if (id === "stWeak") { spUnlock(); const ks = Object.keys(bank).filter(isWeak); SP.forceDirect = true; spStart(pickWeighted(ks, SP.count || 0)); return; }
+  if (id === "stNew") { spUnlock(); const ks = Object.keys(bank).sort(cmpKey).filter(k => !isSeen(k)); SP.forceLearn = true; spStart(ks.slice(0, SP.count || 20)); return; }
+  const l = e.target.closest(".st-l");
+  if (l) {
+    const ks = Object.keys(bank).filter(k => splitKey(k)[0] === l.dataset.l).sort(cmpKey);
+    const tag = k => isWeak(k) ? "w" : progGet(k)[0] > 0 ? "g" : isSeen(k) ? "l" : "u";
+    $("#stList").innerHTML = `<div class="st-words">${ks.map(k => `<span class="st-w ${tag(k)}" title="${esc(bank[k].zh)}">${esc(bank[k].en)}</span>`).join("")}</div>`;
+  }
+});
 $("#spStart").onclick = () => { spUnlock(); spStart(); };
 document.addEventListener("touchend", spUnlock, { once: true });
 $("#spSpeak").onclick = () => { spUnlock(); spReadFull(); };
