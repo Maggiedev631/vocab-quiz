@@ -288,12 +288,14 @@ tr.flag td{background:#fffbea}
         <button class="chip2" data-v="wrong">📕 錯字本 <span id="spWrongN"></span></button>
       </div>
       <div id="spScopeMore" style="margin-top:10px"></div>
+      <div id="spCountBox">
       <label class="f" style="margin-top:16px">題數</label>
       <div class="chips" id="spCount">
         <button class="chip2" data-v="10">10 題</button>
         <button class="chip2 on" data-v="20">20 題</button>
         <button class="chip2" data-v="50">50 題</button>
         <button class="chip2" data-v="0">全部</button>
+      </div>
       </div>
       <label class="f" style="margin-top:16px">練習方式</label>
       <div class="chips" id="spMode">
@@ -306,6 +308,13 @@ tr.flag td{background:#fffbea}
           <button class="chip2" data-v="5">5 個</button>
           <button class="chip2" data-v="10">10 個</button>
           <button class="chip2" data-v="20">20 個</button>
+        </div>
+        <label class="f" style="margin-top:12px">先學幾組（每組學完都可以休息或結束）</label>
+        <div class="chips" id="lnGroups">
+          <button class="chip2" data-v="1">1 組</button>
+          <button class="chip2" data-v="2">2 組</button>
+          <button class="chip2" data-v="3">3 組</button>
+          <button class="chip2" data-v="4">4 組</button>
         </div>
       </div>
       <details>
@@ -340,7 +349,7 @@ tr.flag td{background:#fffbea}
     </div>
 
     <div class="card sp-wrap" id="spLearn" style="display:none">
-      <div class="sp-top"><span id="lnProg">📚 學習</span><button class="linkbtn" id="lnSkip">跳過學習，直接考 ➜</button></div>
+      <div class="sp-top"><span id="lnProg">📚 學習</span><span><button class="linkbtn" id="lnSkip">跳過學習，直接考 ➜</button>　<button class="linkbtn" id="lnQuit" style="color:var(--muted)">結束</button></span></div>
       <div class="ln-dots" id="lnDots"></div>
       <div id="lnBody"></div>
     </div>
@@ -835,7 +844,9 @@ function spStart(list) {
   let pool = list || spPool();
   if (!pool.length) return toast(SP.scope === "range" ? "範圍格式請寫成像 T24-T63" : SP.scope === "wrong" ? "錯字本是空的 🎉" : "請先選字母");
   // 出題：依熟悉度挑字（不熟的、沒考過的比較常出），題目順序一律打亂
-  pool = list ? shuffleArr(list) : shuffleArr(pickWeighted(pool, SP.count));
+  const wantLearn = SP.forceLearn || (SP.mode === "learn" && !list && !SP.forceDirect);
+  const cnt = wantLearn ? SP.lnSize * (SP.lnGroups || 1) : SP.count;
+  pool = list ? shuffleArr(list) : shuffleArr(pickWeighted(pool, cnt));
   Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [] });
   $("#spSetup").style.display = "none"; $("#spEnd").style.display = "none"; $("#spPlay").style.display = "";
   const first = SP.list.slice(0, 3);
@@ -907,7 +918,7 @@ function spSubmit() {
 function spNext() {
   SP.i++;
   if (SP.i >= SP.list.length) return spEnd();
-  if (SP.learnOn && SP.i % SP.lnSize === 0) return lnStart(SP.i);
+  if (SP.learnOn && SP.i % SP.lnSize === 0) return lnBetween();
   spShowQ();
 }
 function spEnd() {
@@ -939,14 +950,18 @@ SP.lnSize = lsGet("vq_lnSize", 5);
 function spModeUI() {
   document.querySelectorAll("#spMode .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === SP.mode));
   document.querySelectorAll("#lnSize .chip2").forEach(b => b.classList.toggle("on", +b.dataset.v === SP.lnSize));
+  document.querySelectorAll("#lnGroups .chip2").forEach(b => b.classList.toggle("on", +b.dataset.v === SP.lnGroups));
   $("#lnSizeBox").style.display = SP.mode === "learn" ? "" : "none";
+  $("#spCountBox").style.display = SP.mode === "learn" ? "none" : "";
 }
+SP.lnGroups = lsGet("vq_lnGroups", 1);
+$("#lnGroups").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.lnGroups = +b.dataset.v; lsSet("vq_lnGroups", SP.lnGroups); spModeUI(); };
 $("#lnSize").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.lnSize = +b.dataset.v; lsSet("vq_lnSize", SP.lnSize); spModeUI(); };
 $("#spMode").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.mode = b.dataset.v; lsSet("vq_spMode", SP.mode); spModeUI(); };
 spModeUI();
 function lnStart(from) {
   SP.lnFrom = from; SP.lnI = 0; SP.lnList = SP.list.slice(from, from + SP.lnSize).sort(cmpKey); // 學習時照編號順序
-  $("#spPlay").style.display = "none"; $("#spLearn").style.display = "";
+  $("#spPlay").style.display = "none"; $("#spLearn").style.display = ""; $("#lnSkip").style.display = "";
   lnShow();
 }
 function lnShow() {
@@ -996,6 +1011,20 @@ function lnNext() {
     <div class="hint" style="margin-top:8px">接下來會唸這 ${SP.lnList.length} 個字（順序會打亂），請拼出來</div>
     <div class="row" style="justify-content:center;margin-top:18px"><button class="btn big orange" id="lnTest">▶ 開始考這 ${SP.lnList.length} 個字</button><button class="btn ghost" id="lnAgain">🔁 再看一次</button></div></div>`;
 }
+// 一組考完：可以繼續下一組，也可以先結束（進度都已經存好）
+function lnBetween() {
+  speechSynthesis && speechSynthesis.cancel();
+  const done = SP.i / SP.lnSize, total = Math.ceil(SP.list.length / SP.lnSize);
+  $("#spPlay").style.display = "none"; $("#spLearn").style.display = "";
+  $("#lnProg").textContent = `✅ 第 ${done} 組完成`; $("#lnDots").innerHTML = "";
+  $("#lnSkip").style.display = "none";
+  $("#lnBody").innerHTML = `<div class="ln-done"><div class="bee">🎉</div><h2 style="margin:6px 0">第 ${done} 組完成！</h2>
+    <div class="hint">目前 ⭐ ${SP.score}｜答對 ${SP.right} / ${SP.i}</div>
+    <div class="row" style="justify-content:center;margin-top:18px">
+      <button class="btn big orange" id="lnGoOn">▶ 繼續第 ${done + 1} 組（還有 ${total - done} 組）</button>
+      <button class="btn ghost" id="lnStop">今天先到這裡</button>
+    </div></div>`;
+}
 function lnBeginTest() {
   // 把這一組在題目清單中打亂順序，再開始考
   const a = SP.list.slice(SP.lnFrom, SP.lnFrom + SP.lnSize);
@@ -1013,6 +1042,12 @@ $("#spLearn").addEventListener("click", e => {
   else if (id === "lnPrev") { SP.lnI--; lnShow(); }
   else if (id === "lnTest") { spUnlock(); lnBeginTest(); }
   else if (id === "lnAgain") { SP.lnI = 0; lnShow(); }
+  else if (id === "lnGoOn") { spUnlock(); lnStart(SP.i); }
+  else if (id === "lnStop" || id === "lnQuit") {
+    speechSynthesis && speechSynthesis.cancel();
+    if (!SP.i) { $("#spLearn").style.display = "none"; $("#spSetup").style.display = ""; spScopeUI(); } // 還沒考就離開：回到首頁（看過的字已記錄）
+    else spEnd();
+  }
   else if (id === "lnSkip") { spUnlock(); speechSynthesis && speechSynthesis.cancel(); lnBeginTest(); }
 });
 $("#spLearn").addEventListener("input", e => {
