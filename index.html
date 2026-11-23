@@ -317,7 +317,6 @@ tr.flag td{background:#fffbea}
         <label class="switch" style="margin-top:10px"><input type="checkbox" id="spSent" checked> 唸完單字後唸例句</label>
       </details>
       <div style="text-align:center;margin-top:20px"><button class="btn big orange" id="spStart">▶ 開始練習</button></div>
-      <div class="hint" style="text-align:center;margin-top:12px">⭐ 計分：第一次就拼對 +2｜第二次才拼對 +1｜拼錯 −1｜💡 提示要花 5 顆星</div>
       <div class="hint" style="text-align:center;margin-top:10px" id="spBest"></div>
     </div>
 
@@ -815,7 +814,7 @@ function spScopeUI() {
   else if (v === "wrong") box.innerHTML = `<div class="hint">錯字本有 ${Object.keys(spWrongBook).length} 個字。拼錯的字會自動加進來，連續拼對 2 次就會移出。${Object.keys(spWrongBook).length ? ` <button class="linkbtn" id="spClearWrong">清空錯字本</button>` : ""}</div>`;
   else box.innerHTML = "";
   $("#spWrongN").textContent = Object.keys(spWrongBook).length ? `(${Object.keys(spWrongBook).length})` : "";
-  const best = lsGet("vq_spBest", 0); $("#spBest").textContent = best ? `🏆 最高分 ${best}` : "";
+  const best = lsGet("vq_spBest2", 0); $("#spBest").textContent = best ? `🏆 最高分 ${best}` : "";
 }
 $("#spScope").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.scope = b.dataset.v; spScopeUI(); };
 $("#spScopeMore").onclick = e => {
@@ -915,7 +914,7 @@ function spEnd() {
   speechSynthesis && speechSynthesis.cancel();
   $("#spPlay").style.display = "none"; $("#spLearn").style.display = "none";
   const n = SP.i, acc = n ? Math.round(SP.right / n * 100) : 0;
-  const prev = lsGet("vq_spBest", 0), isBest = SP.score > prev; if (isBest) lsSet("vq_spBest", SP.score);
+  const prev = lsGet("vq_spBest2", 0), isBest = SP.score > prev; if (isBest) lsSet("vq_spBest2", SP.score);
   const medal = acc >= 90 ? "🏆" : acc >= 70 ? "🥈" : acc >= 50 ? "🥉" : "💪";
   $("#spEnd").style.display = "";
   $("#spEnd").innerHTML = `<div class="sp-hero"><span class="bee">${medal}</span><h2>${acc >= 90 ? "Amazing!" : acc >= 70 ? "Great job!" : acc >= 50 ? "Good try!" : "Keep going!"}</h2>${isBest ? `<div style="color:var(--acc);font-weight:700">🎉 新的最高分！</div>` : ""}</div>

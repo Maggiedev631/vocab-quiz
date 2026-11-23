@@ -317,7 +317,6 @@ nav button[data-tab=review].on{background:var(--purple)}
         <label class="switch" style="margin-top:10px"><input type="checkbox" id="spSent" checked> 唸完單字後唸例句</label>
       </details>
       <div style="text-align:center;margin-top:20px"><button class="btn big orange" id="spStart">▶ 開始練習</button></div>
-      <div class="hint" style="text-align:center;margin-top:12px">⭐ 計分：第一次就拼對 +2｜第二次才拼對 +1｜拼錯 −1｜💡 提示要花 5 顆星</div>
       <div class="hint" style="text-align:center;margin-top:10px" id="spBest"></div>
     </div>
 
@@ -411,7 +410,7 @@ function lsGet(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 function fmtTime(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 const wbKey = () => "vq_wb_" + (ME ? ME.sid : "");
-const bestKey = () => "vq_best_" + (ME ? ME.sid : "");
+const bestKey = () => "vq_best2_" + (ME ? ME.sid : "");
 function show(id) {
   ["tab-login", "tab-spell", "tab-review"].forEach(x => $("#" + x).classList.toggle("on", x === id));
   $("#nav").style.display = id === "tab-login" ? "none" : "";
