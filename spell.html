@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🐝 Spelling Bee 拼字練習</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#fffaf0; --ink:#26305a; --muted:#7a7f9a; --line:#f0e6d6;
+  --pri:#2f80ff; --pri2:#e6f0ff; --acc:#ff7a45; --acc2:#fff0e8;
+  --yel:#ffc93c; --mint:#2ec4a6; --pink:#ff5d8f; --orange:#ff7a45; --green:#2ec4a6; --blue:#2f80ff; --purple:#8a5cff;
+  --ok:#14a37f; --okbg:#e3f8f1; --bad:#e8435a; --badbg:#fde8eb; --unk:#c27c00; --unkbg:#fff4d6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);background-image:radial-gradient(#ffe2b8 1.2px,transparent 1.2px);background-size:22px 22px;color:var(--ink);font-family:"Fredoka","Noto Sans TC",system-ui,sans-serif;font-size:16px;line-height:1.55}
+header{background:linear-gradient(120deg,#ffd84d 0%,#ffb347 45%,#ff8f6b 100%);border-bottom:4px solid #26305a}
+.hwrap{max-width:960px;margin:0 auto;padding:16px 16px 0;position:relative;z-index:1}
+.toprow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.search{flex:1;min-width:240px;display:flex;align-items:center;gap:8px;background:#fff;border:3px solid #26305a;border-radius:18px;padding:4px 14px;box-shadow:0 4px 0 #26305a}
+.search span{font-size:22px}
+.search{position:relative}
+.sdrop{display:none;position:absolute;left:-3px;right:-3px;top:calc(100% + 8px);background:#fff;border:3px solid #26305a;border-radius:18px;box-shadow:0 8px 24px rgba(38,48,90,.25);max-height:60vh;overflow:auto;z-index:30;padding:8px}
+.sdrop.on{display:block}
+.sdrop .sh{font-size:13px;color:var(--muted);padding:4px 10px;font-weight:700}
+.sdrop .ri{padding:10px;border-radius:12px;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sdrop .ri:hover{background:#fff6d6}
+.sdrop .ri b{font-size:19px;min-width:110px}
+.sdrop .ri .meta2{font-size:13px;color:var(--muted)}
+.sdrop .nos{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.sdrop .nos button{border:2px solid #26305a;background:#fff;border-radius:999px;padding:2px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:#26305a}
+.sdrop .nos button:hover{background:var(--acc);color:#fff}
+.search input[type=text]{border:0;box-shadow:none;font-size:24px;font-weight:700;letter-spacing:1px;padding:8px 4px;background:transparent}
+header{position:sticky;top:0;z-index:10}
+h1{margin:0;font-size:26px;font-weight:700;color:#26305a;display:flex;align-items:center;gap:10px}
+h1 .badge{background:#fff;border:3px solid #26305a;border-radius:14px;padding:2px 12px;font-family:Fredoka,sans-serif;box-shadow:3px 3px 0 #26305a;transform:rotate(-3deg);display:inline-block}
+nav{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px}
+nav button{border:3px solid #26305a;background:#fff;border-radius:999px;padding:8px 16px;font:inherit;font-size:16px;font-weight:700;color:#26305a;cursor:pointer;white-space:nowrap;box-shadow:0 3px 0 #26305a;transition:transform .1s}
+nav button:active{transform:translateY(2px);box-shadow:0 1px 0 #26305a}
+nav button.on{color:#fff}
+nav button[data-tab=make].on{background:var(--acc)}
+nav button[data-tab=spell].on{background:#f5b700;color:#26305a}
+/* ---------- 拼字練習 ---------- */
+.sp-wrap{max-width:720px;margin:0 auto}
+.sp-hero{text-align:center;padding:10px 0 4px}
+.sp-hero .bee{font-size:64px;display:inline-block;animation:bob 2.2s ease-in-out infinite}
+.sp-hero h2{font-size:28px;margin:6px 0 2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip2{border:2.5px solid #26305a;background:#fff;border-radius:999px;padding:7px 16px;font:inherit;font-weight:700;cursor:pointer;color:#26305a;box-shadow:0 3px 0 #26305a}
+.chip2.on{background:#ffd84d}
+.sp-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-weight:700}
+.sp-bar{height:12px;background:#f1eadb;border-radius:99px;overflow:hidden;border:2px solid #26305a;margin:10px 0 4px}
+.sp-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd84d,#ff7a45);transition:width .3s}
+.sp-speak{display:block;margin:18px auto 8px;width:150px;height:150px;border-radius:50%;border:4px solid #26305a;background:#ffd84d;font-size:64px;cursor:pointer;box-shadow:0 6px 0 #26305a;transition:transform .1s}
+.sp-speak:active{transform:translateY(4px);box-shadow:0 2px 0 #26305a}
+.sp-speak.talk{animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.06)}}
+.sp-tools{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
+.sp-in{display:block;width:100%;font:700 34px Fredoka,sans-serif !important;text-align:center;letter-spacing:3px;padding:14px !important;border:3px solid #26305a !important;border-radius:18px !important}
+.sp-in.ok{background:#e3f8f1 !important;border-color:var(--ok) !important}
+.sp-in.bad{background:#fde8eb !important;border-color:var(--bad) !important;animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.sp-fb{text-align:center;min-height:70px;margin-top:12px;font-size:18px}
+.sp-fb .big{font:700 30px Fredoka,sans-serif;letter-spacing:2px}
+.sp-fb .hintline{color:var(--muted);font-size:15px;margin-top:4px}
+.sp-diff span{padding:0 1px;border-radius:4px}
+.sp-diff .x{background:#ffd0d7;color:var(--bad)}
+.sp-stats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0}
+.sp-stats div{background:#fff6d6;border:2.5px solid #26305a;border-radius:16px;padding:10px 18px;text-align:center;min-width:100px}
+.sp-stats b{display:block;font:700 30px Fredoka,sans-serif}
+.sp-wrong{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center}
+.pop{position:fixed;pointer-events:none;font-size:28px;z-index:60;animation:pop 1s ease-out forwards}
+@keyframes pop{to{transform:translate(var(--dx),var(--dy)) rotate(260deg);opacity:0}}
+nav button[data-tab=grade].on{background:var(--pri)}
+nav button[data-tab=results].on{background:var(--mint)}
+nav button[data-tab=bank].on{background:var(--purple)}
+nav button[data-tab=settings].on{background:var(--pink)}
+main{padding:22px 16px 80px;max-width:960px;margin:0 auto}
+section{display:none} section.on{display:block}
+.card{border:3px solid #26305a;border-radius:22px;padding:20px;margin-bottom:18px;background:#fff;box-shadow:5px 5px 0 rgba(38,48,90,.15)}
+.card h2{margin:0 0 12px;font-size:19px}
+.btn{border:2.5px solid #26305a;border-radius:14px;padding:9px 18px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:#fff;background:var(--pri);box-shadow:0 4px 0 #26305a;transition:transform .08s,box-shadow .08s,filter .15s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #26305a}
+.btn:hover{filter:brightness(1.07)}
+.btn.big{font-size:21px;padding:14px 30px;border-radius:18px;border-width:3px;box-shadow:0 5px 0 #26305a}
+.btn.orange{background:var(--acc)} .btn.green{background:var(--green)} .btn.purple{background:var(--purple)} .btn.pink{background:var(--pink)}
+.btn.ghost{background:#fff;color:var(--ink)}
+.btn.small{padding:5px 12px;font-size:14px;border-radius:10px;border-width:2px;box-shadow:0 3px 0 #26305a}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input[type=text],textarea,select{font:inherit;border:2.5px solid #d9dcea;border-radius:12px;padding:10px 12px;width:100%;background:#fff;color:var(--ink)}
+input[type=text]:focus,textarea:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px var(--pri2)}
+input.bigin{font-size:28px;font-weight:700;padding:12px 18px;letter-spacing:2px;border:3px solid #26305a;border-radius:16px;background:#fffdf5}
+textarea{min-height:140px;resize:vertical}
+label.f{display:block;font-size:15px;color:var(--ink);font-weight:700;margin-bottom:6px}
+details{margin-top:12px}
+details summary{cursor:pointer;color:var(--ink);font-size:15px;font-weight:700;padding:6px 0;list-style:none}
+details summary::before{content:"▸ "} details[open] summary::before{content:"▾ "}
+.drop{border:3px dashed #2f80ff;border-radius:22px;padding:44px 16px;text-align:center;background:#f0f6ff;cursor:pointer;transition:background .15s,transform .15s}
+.drop:hover,.drop.hover{background:#e0ecff;transform:scale(1.01)}
+.drop .ic{font-size:52px;line-height:1;display:inline-block;animation:bob 2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-6deg)}}
+.drop b{display:block;font-size:24px;color:var(--pri);margin:8px 0 4px}
+.hint{font-size:14px;color:var(--muted)}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:700}
+.p-wait{background:#eef1f6;color:var(--muted)} .p-run{background:var(--pri2);color:var(--pri)} .p-done{background:var(--okbg);color:var(--ok)} .p-err{background:var(--badbg);color:var(--bad)} .p-saved{background:#efe8ff;color:var(--purple)}
+.sheet-head{display:grid;grid-template-columns:88px 1fr;gap:14px;align-items:start}
+.thumb{width:88px;height:88px;object-fit:cover;border-radius:12px;border:1px solid var(--line);cursor:zoom-in}
+.meta{display:grid;grid-template-columns:1.3fr .8fr 1fr .8fr;gap:8px}
+.score{font-size:34px;font-weight:900;line-height:1}
+.score small{font-size:14px;color:var(--muted);font-weight:500;margin-left:6px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th{font-size:13px;color:var(--muted);text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);font-weight:500}
+td{padding:5px 4px;border-bottom:1px solid #eef1f6;vertical-align:middle}
+td.n{width:28px;color:var(--muted);font-size:14px}
+td input{padding:6px 8px;border-radius:8px;font-size:15px}
+.chip{border:0;border-radius:10px;min-width:40px;height:36px;font:inherit;font-weight:900;cursor:pointer;font-size:16px}
+.chip.given{background:#eef1f6;color:#a0a7b8;cursor:default;font-size:12px}
+.c-ok{background:var(--okbg);color:var(--ok)} .c-bad{background:var(--badbg);color:var(--bad)} .c-unk{background:var(--unkbg);color:var(--unk)}
+.note{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+.printed{font-weight:700;padding:5px 2px;display:block}
+tr.flag td{background:#fffbea}
+.key{font-size:12px;color:var(--pri)}
+.list{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.list div{display:grid;grid-template-columns:60px 1fr 1fr;padding:7px 12px;border-bottom:1px solid #eef1f6;font-size:15px}
+.list div:nth-child(odd){background:#fafbfe}
+.stat{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.stat div{background:#f4f6fb;border-radius:12px;padding:8px 14px;font-size:13px}
+.stat b{display:block;font-size:20px;color:var(--pri)}
+.res tr{cursor:pointer}
+.res td{font-size:15px;padding:8px 4px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90vw}
+.toast.on{opacity:1}
+.modal{position:fixed;inset:0;background:rgba(20,24,40,.5);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+.modal.on{display:flex}
+.modal .box{background:#fff;border-radius:18px;padding:20px;max-width:560px;width:100%;max-height:85vh;overflow:auto}
+.modal img{max-width:100%;border-radius:12px}
+.warn{background:var(--unkbg);color:#7a5200;border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+.err{background:var(--badbg);color:var(--bad);border-radius:12px;padding:10px 14px;font-size:14px;margin:8px 0}
+.okmsg{background:var(--okbg);color:var(--ok);border-radius:12px;padding:10px 14px;font-size:14px;margin:8px 0}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1.5px solid var(--line);border-radius:14px;margin-bottom:10px;cursor:pointer}
+.opt input{margin-top:5px}
+.opt.sel{border-color:#26305a;background:#fff6d6;box-shadow:3px 3px 0 #26305a}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.subbar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:14px;border-top:2.5px dashed #f0dcbc}
+.switch{display:flex;gap:6px;align-items:center;font-size:15px;cursor:pointer}
+.switch input{width:18px;height:18px}
+.linkbtn{background:none;border:0;color:var(--pri);font:inherit;font-size:15px;font-weight:700;cursor:pointer;padding:4px}
+.paper{border:1.5px solid #222;border-radius:4px;padding:18px 20px;background:#fff;color:#111;margin-top:16px;font-family:"Noto Sans TC",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.paper .ph{display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-weight:900;font-size:19px}
+.paper .ph .ln{display:inline-block;border-bottom:1.5px solid #111;width:120px;height:18px;vertical-align:bottom}
+.paper{position:relative}
+.paper .ph{padding-right:120px}
+.paper .no{position:absolute;right:20px;top:16px;border:2px solid #111;padding:2px 14px;font-size:15px}
+.paper .no b{font-size:26px;margin-left:6px}
+.paper .pi{font-size:13px;color:#555;margin:6px 0 10px}
+.paper .pt{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #111}
+.paper table{margin:0;border-collapse:collapse;table-layout:fixed;width:100%}
+.paper col.c1{width:44px} .paper col.c2{width:46%}
+.paper td{overflow-wrap:anywhere}
+.paper tr.sent td{height:auto;padding:4px 10px 8px;border-top:1px dashed #bbb;font-size:15px;color:#333;background:#fffdf3}
+.paper tr.sent b{color:#d0021b}
+.paper tr.sent small{display:block;color:#777;font-size:13px}
+.paper tr.w td{border-bottom:none}
+.paper tr.wr{cursor:pointer}
+.paper tr.wr:hover td{background:#fff6d6}
+.paper tr.open td{background:#fff3c4}
+.paper .sstat{font-size:13px;color:#a06a00;margin:0 0 8px}
+.paper th,.paper td{border:1px solid #111;padding:6px 10px;font-size:16px;height:44px}
+.paper th{height:auto;font-weight:900;color:#111;font-size:14px}
+.paper td.n{width:34px;font-weight:900;color:#111;font-size:15px}
+.paper .ans{color:#d0021b;font-weight:700}
+.paper .prt{color:#111}
+.paper.hide .ans{color:transparent}
+.empty{text-align:center;color:var(--muted);padding:40px 10px;font-size:17px;border:3px dashed #ffd38a;border-radius:18px;margin-top:16px;background:#fffaf0}
+@media (max-width:700px){.paper .pt{grid-template-columns:1fr}}
+@media (max-width:560px){
+  .grid2{grid-template-columns:1fr}
+  .meta{grid-template-columns:1fr 1fr}
+  .sheet-head{grid-template-columns:64px 1fr}
+  .thumb{width:64px;height:64px}
+  .btn.big{width:100%}
+}
+
+.noin{width:90px !important;text-align:center;font-weight:700}
+
+.names{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:10px}
+.names button{border:2.5px solid #26305a;background:#fff;border-radius:16px;padding:12px 6px;font:inherit;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 3px 0 #26305a;color:#26305a}
+.names button.on{background:#ffd84d}
+.who{display:flex;align-items:center;gap:10px;font-weight:700;color:#26305a}
+.who .linkbtn{color:#26305a;text-decoration:underline}
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="toprow" style="justify-content:space-between">
+    <h1><span class="badge">Spelling Bee</span> 拼字練習 🐝</h1>
+    <div class="who" id="who"></div>
+  </div>
+</div></header>
+<main>
+  <section id="tab-login" class="on">
+    <div class="card sp-wrap" id="loginCard">
+      <div class="sp-hero"><span class="bee">🐝</span><h2>Hi! 你是誰？</h2><div class="hint">選你的名字，輸入老師給你的密碼</div></div>
+      <div id="clsBox" style="margin-top:14px"></div>
+      <div class="names" id="names"><div class="hint">載入中…</div></div>
+      <div id="pwBox" style="display:none;margin-top:18px">
+        <label class="f" id="pwLabel">密碼</label>
+        <input type="password" id="pw" class="sp-in" inputmode="text" autocomplete="off" placeholder="••••">
+        <div style="text-align:center;margin-top:14px"><button class="btn big orange" id="loginBtn">登入</button></div>
+      </div>
+      <div id="loginMsg" style="margin-top:10px;text-align:center"></div>
+    </div>
+  </section>
+  <section id="tab-spell">
+    <div class="card sp-wrap" id="spSetup">
+      <div class="sp-hero"><span class="bee">🐝</span><h2>Spelling Bee 拼字練習</h2><div class="hint">聽老師唸兩次單字和例句，拼出這個字！</div></div>
+      <label class="f" style="margin-top:16px">練習範圍</label>
+      <div class="chips" id="spScope">
+        <button class="chip2 on" data-v="all">全部 1200 單</button>
+        <button class="chip2" data-v="letter">選字母</button>
+        <button class="chip2" data-v="range">自訂範圍</button>
+        <button class="chip2" data-v="wrong">📕 錯字本 <span id="spWrongN"></span></button>
+      </div>
+      <div id="spScopeMore" style="margin-top:10px"></div>
+      <label class="f" style="margin-top:16px">題數</label>
+      <div class="chips" id="spCount">
+        <button class="chip2" data-v="10">10 題</button>
+        <button class="chip2 on" data-v="20">20 題</button>
+        <button class="chip2" data-v="50">50 題</button>
+        <button class="chip2" data-v="0">全部</button>
+      </div>
+      <details>
+        <summary>聲音設定</summary>
+        <div class="grid2" style="margin-top:10px">
+          <div><label class="f">語速 <span id="spRateV"></span></label><input type="range" id="spRate" min="0.5" max="1.2" step="0.05" value="0.85" style="width:100%"></div>
+          <div><label class="f">聲音</label><select id="spVoice"></select></div>
+        </div>
+        <label class="switch" style="margin-top:10px"><input type="checkbox" id="spSent" checked> 唸完單字後唸例句</label>
+      </details>
+      <div style="text-align:center;margin-top:20px"><button class="btn big orange" id="spStart">▶ 開始練習</button></div>
+      <div class="hint" style="text-align:center;margin-top:10px" id="spBest"></div>
+    </div>
+
+    <div class="card sp-wrap" id="spPlay" style="display:none">
+      <div class="sp-top"><span id="spProg">第 1 / 20 題</span><span>⭐ <span id="spScore">0</span>　🔥 <span id="spStreak">0</span></span></div>
+      <div class="sp-bar"><i id="spBarI" style="width:0%"></i></div>
+      <button class="sp-speak" id="spSpeak" title="再唸一次">🔊</button>
+      <div class="sp-tools">
+        <button class="btn small ghost" id="spWord">🔊 只唸單字</button>
+        <button class="btn small ghost" id="spSlow">🐢 慢慢唸</button>
+        <button class="btn small ghost" id="spSentBtn">📖 例句</button>
+        <button class="btn small ghost" id="spHint">💡 提示</button>
+      </div>
+      <input type="text" class="sp-in" id="spIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type here">
+      <div class="sp-fb" id="spFb"></div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        <button class="btn big" id="spGo">✔ 送出</button>
+        <button class="btn ghost" id="spSkip">跳過</button>
+        <button class="linkbtn" id="spQuit">結束</button>
+      </div>
+    </div>
+
+    <div class="card sp-wrap" id="spEnd" style="display:none"></div>
+  </section>
+
+
+</main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+/* Firebase：與「拼字之星」共用同一個專案 */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAWLvYbyhq4UBdBFLYDvFgqVjTkurIBXiU",
+  authDomain: "amc-spelling-star.firebaseapp.com",
+  projectId: "amc-spelling-star",
+  storageBucket: "amc-spelling-star.firebasestorage.app",
+  messagingSenderId: "93547096256",
+  appId: "1:93547096256:web:adef0633c4326beb30a525"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.firestore();
+
+let bank = {}, sents = {};
+let ME = null; // {sid, name, cls, pw}
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function toast(msg, ms = 2200) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms); }
+function parseRange(r) {
+  const m = String(r || "").replace(/\s/g, "").toUpperCase().match(/^([A-Z]{0,2})(\d+)[-~～—–到至]([A-Z]{0,2})(\d+)$/);
+  if (!m) return null;
+  let L1 = m[1] || m[3] || "", L2 = m[3] || L1;
+  let a = +m[2], b = +m[4];
+  if (L1 === L2) {
+    if (b < a) [a, b] = [b, a];
+    if (b - a > 200) return null;
+    return { L1, L2, a, b, cross: false, len: b - a + 1, text: L1 ? `${L1}${a}-${L1}${b}` : `${a}-${b}` };
+  }
+  if (L1 > L2) { [L1, L2] = [L2, L1]; [a, b] = [b, a]; }
+  return { L1, L2, a, b, cross: true, len: 0, text: `${L1}${a}-${L2}${b}` };
+}
+function inRange(p, k) {
+  const [L, n] = splitKey(k);
+  if (!p.cross) return L === p.L1 && n >= p.a && n <= p.b;
+  if (L < p.L1 || L > p.L2) return false;
+  if (L === p.L1 && n < p.a) return false;
+  if (L === p.L2 && n > p.b) return false;
+  return true;
+}
+function splitKey(k) { const m = String(k).match(/^([A-Z]*)(\d+)$/); return m ? [m[1], +m[2]] : [String(k), 0]; }
+function cmpKey(a, b) { const [la, na] = splitKey(a), [lb, nb] = splitKey(b); return la < lb ? -1 : la > lb ? 1 : na - nb; }
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function fmtTime(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
+const wbKey = () => "vq_wb_" + (ME ? ME.sid : "");
+const bestKey = () => "vq_best_" + (ME ? ME.sid : "");
+function show(id) { ["tab-login", "tab-spell"].forEach(x => $("#" + x).classList.toggle("on", x === id)); }
+
+// ---------- 登入 ----------
+let STUDENTS = [], pickSid = null, pickCls = lsGet("vq_cls", "");
+async function loadStudents() {
+  try {
+    const s = await db.collection("vq_students").get();
+    STUDENTS = s.docs.map(d => ({ sid: d.id, ...d.data() })).sort((a, b) => (a.cls || "").localeCompare(b.cls || "") || (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name, "zh-Hant"));
+  } catch (e) { $("#names").innerHTML = `<div class="err">讀不到名單，請稍後再試</div>`; return; }
+  renderNames();
+}
+function renderNames() {
+  const classes = [...new Set(STUDENTS.map(s => s.cls || ""))].filter(Boolean).sort();
+  if (classes.length > 1) {
+    if (!classes.includes(pickCls)) pickCls = classes[0];
+    $("#clsBox").innerHTML = `<label class="f">班級</label><div class="chips">${classes.map(c => `<button class="chip2 ${c === pickCls ? "on" : ""}" data-cls="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
+  } else { $("#clsBox").innerHTML = ""; pickCls = classes[0] || ""; }
+  const list = STUDENTS.filter(s => !classes.length || classes.length === 1 || (s.cls || "") === pickCls);
+  $("#names").innerHTML = list.length ? list.map(s => `<button data-sid="${esc(s.sid)}" class="${s.sid === pickSid ? "on" : ""}">${esc(s.name)}</button>`).join("") : `<div class="hint">老師還沒有建立名單</div>`;
+}
+$("#clsBox").onclick = e => { const b = e.target.closest("[data-cls]"); if (!b) return; pickCls = b.dataset.cls; lsSet("vq_cls", pickCls); pickSid = null; $("#pwBox").style.display = "none"; renderNames(); };
+$("#names").onclick = e => {
+  const b = e.target.closest("[data-sid]"); if (!b) return;
+  pickSid = b.dataset.sid; renderNames();
+  const s = STUDENTS.find(x => x.sid === pickSid);
+  $("#pwLabel").textContent = `${s.name} 的密碼`; $("#pwBox").style.display = ""; $("#loginMsg").innerHTML = "";
+  $("#pw").value = ""; $("#pw").focus();
+};
+async function tryLogin(sid, pw) {
+  const s = STUDENTS.find(x => x.sid === sid) || { name: "", cls: "" };
+  // 規則會檢查密碼是否正確，錯的話寫不進去
+  await db.collection("vq_login").doc(sid).set({ pw, name: s.name, cls: s.cls || "", t: Date.now() });
+  return { sid, pw, name: s.name, cls: s.cls || "" };
+}
+$("#loginBtn").onclick = async () => {
+  const pw = $("#pw").value.trim(); if (!pickSid || !pw) return;
+  $("#loginBtn").disabled = true; $("#loginMsg").innerHTML = `<div class="hint">登入中…</div>`;
+  try { ME = await tryLogin(pickSid, pw); lsSet("vq_me", ME); afterLogin(); }
+  catch (e) { $("#loginMsg").innerHTML = `<div class="err">密碼不對，再試一次，或問老師 🙂</div>`; $("#pw").select(); }
+  $("#loginBtn").disabled = false;
+};
+$("#pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#loginBtn").click(); });
+function afterLogin() {
+  spWrongBook = lsGet(wbKey(), {});
+  $("#who").innerHTML = `👋 ${esc(ME.name)} <button class="linkbtn" id="logout">不是我</button>`;
+  show("tab-spell"); spScopeUI();
+}
+$("#who").onclick = e => { if (e.target.id !== "logout") return; ME = null; lsSet("vq_me", null); $("#who").innerHTML = ""; pickSid = null; $("#pwBox").style.display = "none"; show("tab-login"); renderNames(); };
+
+// ---------- 上傳紀錄給老師 ----------
+function spScopeLabel() {
+  if (SP.scope === "letter") return "字母 " + lsGet("vq_spL", []).join("、");
+  if (SP.scope === "range") return "範圍 " + ($("#spRange") ? $("#spRange").value.trim() : "");
+  if (SP.scope === "wrong") return "錯字本";
+  return "全部 1200 單";
+}
+async function spRecord() {
+  if (!ME || SP.saved) return;
+  const n = SP.i; if (!n) return;
+  SP.saved = true;
+  const rec = {
+    sid: ME.sid, name: ME.name, cls: ME.cls || "", pw: ME.pw,
+    scope: SP.label || "", n, right: SP.right, score: SP.score, best: SP.best,
+    acc: Math.round(SP.right / n * 100),
+    wrong: SP.wrong.map(x => ({ k: x.k, w: bank[x.k] ? bank[x.k].en : x.k, typed: x.typed })),
+    words: SP.done.slice(0, n), secs: Math.round((Date.now() - (SP.t0 || Date.now())) / 1000), t: Date.now()
+  };
+  try { await db.collection("vq_results").add(rec); toast("✅ 成績已傳給老師"); }
+  catch (e) { SP.saved = false; toast("⚠️ 成績沒有傳出去，請重新登入"); }
+}
+
+// ---------- 🐝 拼字練習 ----------
+const SP = { scope: "all", count: 20, list: [], i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [], hinted: false, answered: false, tries: 0 };
+let spVoices = [];
+let spWrongBook = {};
+function spAnswers(w) { // 可接受的拼法
+  const out = new Set();
+  w.split("/").forEach(part => {
+    part = part.trim().replace(/^the\s+/i, m => m); 
+    const m = part.match(/^(.*?)\s*\((.*?)\)\s*(.*)$/);
+    if (m) {
+      const a = (m[1] + m[3]).trim(), b = (m[1] + m[2] + m[3]).trim();
+      out.add(a); out.add(b);
+      if (m[2].length > 1 && !/^[a-z]+$/.test(m[2]) || /^[A-Z]+$/.test(m[2])) out.add(m[2]); // television (TV)
+      if (/^an?$/.test(m[2])) out.add(m[2]);
+    } else out.add(part);
+  });
+  return [...out].filter(Boolean).map(spNorm);
+}
+function spNorm(s) { return String(s).toLowerCase().replace(/[’']/g, "'").replace(/\./g, "").replace(/\s+/g, " ").trim(); }
+function spSayText(w) { return w.replace(/\s*\((.*?)\)/g, ", $1").replace(/\//g, ", or "); }
+function spLoadVoices() {
+  spVoices = (speechSynthesis.getVoices() || []).filter(v => /^en(-|_)/i.test(v.lang));
+  const pref = ["Samantha", "Google US English", "Microsoft Aria", "Microsoft Jenny", "Alex", "Karen", "Daniel"];
+  spVoices.sort((a, b) => { const ia = pref.findIndex(p => a.name.includes(p)), ib = pref.findIndex(p => b.name.includes(p)); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a.lang === "en-US" ? -1 : 1); });
+  const saved = lsGet("vq_voice", "");
+  $("#spVoice").innerHTML = spVoices.map(v => `<option value="${esc(v.name)}" ${v.name === saved ? "selected" : ""}>${esc(v.name)}（${esc(v.lang)}）</option>`).join("") || `<option>（使用預設聲音）</option>`;
+}
+if ("speechSynthesis" in window) { spLoadVoices(); speechSynthesis.onvoiceschanged = spLoadVoices; }
+$("#spVoice").onchange = () => lsSet("vq_voice", $("#spVoice").value);
+$("#spRate").value = lsGet("vq_rate", 0.85);
+const spRateLabel = () => $("#spRateV").textContent = "×" + (+$("#spRate").value).toFixed(2);
+$("#spRate").oninput = () => { lsSet("vq_rate", +$("#spRate").value); spRateLabel(); }; spRateLabel();
+let spUnlocked = false;
+function spUnlock() { // iPhone/iPad：要在「點按的當下」先出聲一次，之後才能自動朗讀
+  if (spUnlocked || !("speechSynthesis" in window)) return;
+  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0.01; speechSynthesis.speak(u); spUnlocked = true; } catch {}
+  if (!spVoices.length) spLoadVoices();
+}
+function speak(parts) { // parts: [{t, rate, pause}]
+  if (!("speechSynthesis" in window)) { toast("這個瀏覽器不支援朗讀，請用 Safari 或 Chrome 打開"); return Promise.resolve(); }
+  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+  const v = spVoices.find(x => x.name === $("#spVoice").value) || spVoices.find(x => x.lang === "en-US") || spVoices[0];
+  const base = +$("#spRate").value;
+  const token = (speak.token = (speak.token || 0) + 1);
+  $("#spSpeak").classList.add("talk");
+  const say = part => new Promise(res => {
+    if (token !== speak.token) return res();
+    if (part.pause) return setTimeout(res, part.pause);
+    const u = new SpeechSynthesisUtterance(part.t);
+    if (v) u.voice = v;
+    u.lang = v ? v.lang : "en-US";
+    u.rate = base * (part.rate || 1);
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    u.onend = u.onerror = fin;
+    setTimeout(fin, 3000 + part.t.length * 180); // 保險：有些手機不會回報 onend
+    speechSynthesis.speak(u); // 第一句在點按當下同步送出（iOS 需要）
+    if (speechSynthesis.paused) speechSynthesis.resume();
+  });
+  let p = say(parts[0]);
+  parts.slice(1).forEach(part => { p = p.then(() => say(part)); });
+  return p.then(() => { if (token === speak.token) $("#spSpeak").classList.remove("talk"); });
+}
+function spCur() { return SP.list[SP.i]; }
+function spReadFull() {
+  const w = spCur(); if (!w) return;
+  const t = spSayText(bank[w].en);
+  const parts = [{ t }, { pause: 700 }, { t }];
+  const s = sents[w];
+  if ($("#spSent").checked && s) parts.push({ pause: 800 }, { t: s[0] }, { pause: 700 }, { t });
+  return speak(parts);
+}
+// 範圍選擇
+function spScopeUI() {
+  const v = SP.scope, box = $("#spScopeMore");
+  document.querySelectorAll("#spScope .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  if (v === "letter") {
+    const Ls = [...new Set(Object.keys(bank).map(k => splitKey(k)[0]))].sort();
+    const sel = lsGet("vq_spL", ["A"]);
+    box.innerHTML = `<div class="chips" id="spLetters">${Ls.map(L => `<button class="chip2 ${sel.includes(L) ? "on" : ""}" data-l="${L}">${L}</button>`).join("")}</div><div class="hint" style="margin-top:6px">可以選很多個字母</div>`;
+  } else if (v === "range") box.innerHTML = `<input type="text" id="spRange" placeholder="例如 T24-T63 或 A1-C20" value="${esc(lsGet("vq_spR", ""))}">`;
+  else if (v === "wrong") box.innerHTML = `<div class="hint">錯字本有 ${Object.keys(spWrongBook).length} 個字。拼錯的字會自動加進來，連續拼對 2 次就會移出。${Object.keys(spWrongBook).length ? ` <button class="linkbtn" id="spClearWrong">清空錯字本</button>` : ""}</div>`;
+  else box.innerHTML = "";
+  $("#spWrongN").textContent = Object.keys(spWrongBook).length ? `(${Object.keys(spWrongBook).length})` : "";
+  const best = lsGet(bestKey(), 0); $("#spBest").textContent = best ? `🏆 最高分 ${best}` : "";
+}
+$("#spScope").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.scope = b.dataset.v; spScopeUI(); };
+$("#spScopeMore").onclick = e => {
+  const b = e.target.closest("[data-l]");
+  if (b) { b.classList.toggle("on"); lsSet("vq_spL", [...document.querySelectorAll("#spLetters .on")].map(x => x.dataset.l)); }
+  if (e.target.id === "spClearWrong") { spWrongBook = {}; lsSet(wbKey(), spWrongBook); spScopeUI(); }
+};
+$("#spCount").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.count = +b.dataset.v; document.querySelectorAll("#spCount .chip2").forEach(x => x.classList.toggle("on", x === b)); };
+function spPool() {
+  const all = Object.keys(bank).sort(cmpKey);
+  if (SP.scope === "letter") { const sel = lsGet("vq_spL", []); return all.filter(k => sel.includes(splitKey(k)[0])); }
+  if (SP.scope === "range") { const r = $("#spRange").value.trim(); lsSet("vq_spR", r); const p = parseRange(r); return p ? all.filter(k => inRange(p, k)) : []; }
+  if (SP.scope === "wrong") return Object.keys(spWrongBook).filter(k => bank[k]);
+  return all;
+}
+function spStart(list) {
+  if (!Object.keys(bank).length) return toast("題庫還在載入，請稍等");
+  let pool = list || spPool();
+  if (!pool.length) return toast(SP.scope === "range" ? "範圍格式請寫成像 T24-T63" : SP.scope === "wrong" ? "錯字本是空的 🎉" : "請先選字母");
+  pool = pool.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  if (!list && SP.count) pool = pool.slice(0, SP.count);
+  Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [], done: [], label: list ? "再練拼錯的字" : spScopeLabel(), t0: Date.now(), saved: false });
+  $("#spSetup").style.display = "none"; $("#spEnd").style.display = "none"; $("#spPlay").style.display = "";
+  spShowQ();
+}
+function spShowQ() {
+  Object.assign(SP, { hinted: false, answered: false, tries: 0 });
+  $("#spProg").textContent = `第 ${SP.i + 1} / ${SP.list.length} 題`;
+  $("#spBarI").style.width = (SP.i / SP.list.length * 100) + "%";
+  $("#spScore").textContent = SP.score; $("#spStreak").textContent = SP.streak;
+  const inp = $("#spIn"); inp.value = ""; inp.className = "sp-in"; inp.disabled = false; inp.focus();
+  $("#spFb").innerHTML = ""; $("#spGo").textContent = "✔ 送出";
+  spReadFull();
+}
+function spDiff(typed, ans) {
+  return [...ans].map((c, i) => `<span class="${(typed[i] || "").toLowerCase() === c.toLowerCase() ? "" : "x"}">${esc(c)}</span>`).join("");
+}
+function beep(ok) {
+  try {
+    const ac = beep.ac || (beep.ac = new (window.AudioContext || window.webkitAudioContext)());
+    const notes = ok ? [660, 880] : [300, 220];
+    notes.forEach((f, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; o.type = "triangle"; g.gain.setValueAtTime(.15, ac.currentTime + i * .12); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + i * .12 + .25); o.connect(g).connect(ac.destination); o.start(ac.currentTime + i * .12); o.stop(ac.currentTime + i * .12 + .3); });
+  } catch {}
+}
+function confetti() {
+  const r = $("#spIn").getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement("span"); s.className = "pop"; s.textContent = ["⭐", "🎉", "✨", "🐝", "💛"][i % 5];
+    s.style.left = (r.left + r.width / 2) + "px"; s.style.top = (r.top) + "px";
+    s.style.setProperty("--dx", (Math.random() * 300 - 150) + "px"); s.style.setProperty("--dy", (-Math.random() * 220 - 40) + "px");
+    document.body.appendChild(s); setTimeout(() => s.remove(), 1000);
+  }
+}
+function spSubmit() {
+  if (SP.answered) return spNext();
+  const k = spCur(), w = bank[k], typed = $("#spIn").value.trim();
+  if (!typed) { $("#spIn").focus(); return; }
+  const ok = spAnswers(w.en).includes(spNorm(typed));
+  const inp = $("#spIn");
+  if (ok) {
+    const pts = SP.hinted ? 5 : SP.tries ? 6 : 10;
+    SP.streak++; SP.score += pts + (SP.streak >= 3 ? 2 : 0); SP.right++;
+    SP.best = Math.max(SP.best, SP.streak);
+    inp.className = "sp-in ok"; beep(true); confetti();
+    $("#spFb").innerHTML = `<div class="big" style="color:var(--ok)">✅ ${esc(w.en)}</div><div class="hintline">${esc(w.zh)}　+${pts}${SP.streak >= 3 ? "（連對加分 +2）" : ""}</div>`;
+    if (spWrongBook[k]) { spWrongBook[k]--; if (spWrongBook[k] <= 0) delete spWrongBook[k]; lsSet(wbKey(), spWrongBook); }
+    SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
+  } else if (SP.tries === 0) {
+    SP.tries = 1; inp.className = "sp-in bad"; beep(false);
+    $("#spFb").innerHTML = `<div style="color:var(--bad);font-weight:700">差一點！再聽一次，再試一次 💪</div>`;
+    setTimeout(() => { inp.className = "sp-in"; inp.select(); }, 400);
+    spReadFull();
+  } else {
+    SP.streak = 0; inp.className = "sp-in bad"; beep(false);
+    SP.wrong.push({ k, typed });
+    spWrongBook[k] = 2; lsSet(wbKey(), spWrongBook); // 要再連續拼對 2 次才移出
+    $("#spFb").innerHTML = `<div class="hintline">你拼的：<span class="sp-diff">${esc(typed)}</span></div><div class="big sp-diff">❌ ${spDiff(typed, w.en)}</div><div class="hintline">${esc(w.zh)}　已加入錯字本</div>`;
+    SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
+    speak([{ t: spSayText(w.en) }]);
+  }
+  $("#spScore").textContent = SP.score; $("#spStreak").textContent = SP.streak;
+}
+function spNext() {
+  SP.done.push(spCur());
+  SP.i++;
+  if (SP.i >= SP.list.length) return spEnd();
+  spShowQ();
+}
+function spEnd() {
+  speechSynthesis && speechSynthesis.cancel();
+  spRecord();
+  $("#spPlay").style.display = "none";
+  const n = SP.i, acc = n ? Math.round(SP.right / n * 100) : 0;
+  const prev = lsGet(bestKey(), 0), isBest = SP.score > prev; if (isBest) lsSet(bestKey(), SP.score);
+  const medal = acc >= 90 ? "🏆" : acc >= 70 ? "🥈" : acc >= 50 ? "🥉" : "💪";
+  $("#spEnd").style.display = "";
+  $("#spEnd").innerHTML = `<div class="sp-hero"><span class="bee">${medal}</span><h2>${acc >= 90 ? "Amazing!" : acc >= 70 ? "Great job!" : acc >= 50 ? "Good try!" : "Keep going!"}</h2>${isBest ? `<div style="color:var(--acc);font-weight:700">🎉 新的最高分！</div>` : ""}</div>
+    <div class="sp-stats"><div><b>${SP.score}</b>分數</div><div><b>${SP.right}/${n}</b>答對</div><div><b>${acc}%</b>正確率</div><div><b>${SP.best}</b>最長連對</div></div>
+    ${SP.wrong.length ? `<h2 style="margin-top:16px">📕 這次拼錯的字</h2><div class="sp-wrong">${SP.wrong.map(x => `<button class="btn small ghost" data-say="${esc(x.k)}">🔊</button><div><b style="font-size:18px">${esc(bank[x.k].en)}</b>　<span class="hint">${esc(bank[x.k].zh)}｜你拼：${esc(x.typed)}</span></div><span class="hint">${esc(x.k)}</span>`).join("")}</div>` : `<div class="okmsg" style="text-align:center">全部拼對，太厲害了！</div>`}
+    <div class="row" style="justify-content:center;margin-top:20px">
+      ${SP.wrong.length ? `<button class="btn big orange" id="spRetryWrong">🔁 再練拼錯的字</button>` : ""}
+      <button class="btn big" id="spAgain">▶ 再玩一次</button>
+      <button class="btn ghost" id="spBack">回設定</button>
+    </div>`;
+}
+$("#spEnd").onclick = e => {
+  const s = e.target.closest("[data-say]"); if (s) { const w = bank[s.dataset.say]; const t = spSayText(w.en); speak([{ t }, { pause: 500 }, { t, rate: .7 }]); return; }
+  if (e.target.id === "spRetryWrong") spStart(SP.wrong.map(x => x.k));
+  if (e.target.id === "spAgain") spStart();
+  if (e.target.id === "spBack") { $("#spEnd").style.display = "none"; $("#spSetup").style.display = ""; spScopeUI(); }
+};
+$("#spStart").onclick = () => { spUnlock(); spStart(); };
+document.addEventListener("touchend", spUnlock, { once: true });
+$("#spSpeak").onclick = () => { spUnlock(); spReadFull(); };
+$("#spWord").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t }]); $("#spIn").focus(); };
+$("#spSlow").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t, rate: .6 }]); $("#spIn").focus(); };
+$("#spSentBtn").onclick = () => { const s = sents[spCur()]; if (!s) return toast("這個字沒有例句"); speak([{ t: s[0] }]); $("#spIn").focus(); };
+$("#spHint").onclick = () => {
+  if (SP.answered) return;
+  const w = bank[spCur()]; SP.hinted = true;
+  $("#spFb").innerHTML = `<div class="hintline">💡 ${esc(w.zh)}｜開頭是 <b style="font-size:22px">${esc(w.en[0])}</b>，共 ${w.en.replace(/[^A-Za-z]/g, "").length} 個字母</div>`;
+  $("#spIn").focus();
+};
+$("#spGo").onclick = spSubmit;
+$("#spSkip").onclick = () => { if (SP.answered) return spNext(); SP.tries = 1; $("#spIn").value = $("#spIn").value || "(skip)"; spSubmit(); };
+$("#spQuit").onclick = () => spEnd();
+$("#spIn").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); spSubmit(); } });
+document.addEventListener("keydown", e => { if (e.key === "Enter" && SP.answered && $("#spPlay").style.display !== "none" && document.activeElement !== $("#spIn")) spNext(); });
+
+
+// ---------- 載入 ----------
+Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").then(r => r.json()).catch(() => ({}))]).then(([b, s]) => {
+  for (const k in b) bank[k] = Array.isArray(b[k]) ? { en: b[k][0], zh: b[k][1] } : b[k];
+  sents = s;
+}).catch(() => toast("題庫載入失敗，請重新整理"));
+loadStudents().then(async () => {
+  const saved = lsGet("vq_me", null);
+  if (saved && saved.sid && saved.pw && STUDENTS.some(s => s.sid === saved.sid)) {
+    try { ME = await tryLogin(saved.sid, saved.pw); afterLogin(); } catch { lsSet("vq_me", null); }
+  }
+});
+</script>
+</body>
+</html>
