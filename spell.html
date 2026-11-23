@@ -43,6 +43,20 @@ nav button.on{color:#fff}
 nav button[data-tab=make].on{background:var(--acc)}
 nav button[data-tab=spell].on{background:#f5b700;color:#26305a}
 /* ---------- 拼字練習 ---------- */
+/* ---------- 先學再考 ---------- */
+.ln-card{border:3px solid #26305a;border-radius:22px;background:linear-gradient(180deg,#fffdf3,#fff6d6);padding:22px 16px;text-align:center;margin:14px 0;box-shadow:0 5px 0 rgba(38,48,90,.18)}
+.ln-no{display:inline-block;background:#26305a;color:#fff;border-radius:999px;padding:2px 12px;font:700 14px Fredoka,sans-serif}
+.ln-en{font:700 52px Fredoka,sans-serif;color:#26305a;letter-spacing:2px;margin:8px 0 2px;word-break:break-word}
+.ln-zh{font-size:22px;font-weight:700;color:#d0021b}
+.ln-sent{margin-top:12px;font-size:17px;color:#333}
+.ln-sent b{color:#d0021b}
+.ln-sent small{display:block;color:var(--muted);font-size:14px;margin-top:2px}
+.ln-done{text-align:center;padding:10px 0}
+.ln-done .bee{font-size:60px}
+.ln-dots{display:flex;gap:6px;justify-content:center;margin-top:6px}
+.ln-dots i{width:12px;height:12px;border-radius:50%;background:#f1eadb;border:2px solid #26305a}
+.ln-dots i.on{background:#ffd84d}
+
 .sp-wrap{max-width:720px;margin:0 auto}
 .sp-hero{text-align:center;padding:10px 0 4px}
 .sp-hero .bee{font-size:64px;display:inline-block;animation:bob 2.2s ease-in-out infinite}
@@ -261,6 +275,11 @@ nav button[data-tab=review].on{background:var(--purple)}
         <button class="chip2" data-v="50">50 題</button>
         <button class="chip2" data-v="0">全部</button>
       </div>
+      <label class="f" style="margin-top:16px">練習方式</label>
+      <div class="chips" id="spMode">
+        <button class="chip2" data-v="learn">📚 先學再考（每 5 個字一組）</button>
+        <button class="chip2" data-v="test">⚡ 直接考</button>
+      </div>
       <details>
         <summary>聲音設定</summary>
         <div class="grid2" style="margin-top:10px">
@@ -293,6 +312,11 @@ nav button[data-tab=review].on{background:var(--purple)}
       </div>
     </div>
 
+    <div class="card sp-wrap" id="spLearn" style="display:none">
+      <div class="sp-top"><span id="lnProg">📚 學習</span><button class="linkbtn" id="lnSkip">跳過學習，直接考 ➜</button></div>
+      <div class="ln-dots" id="lnDots"></div>
+      <div id="lnBody"></div>
+    </div>
     <div class="card sp-wrap" id="spEnd" style="display:none"></div>
   </section>
 
@@ -588,9 +612,11 @@ function spStart(list) {
   if (!pool.length) return toast(SP.scope === "range" ? "範圍格式請寫成像 T24-T63" : SP.scope === "wrong" ? "錯字本是空的 🎉" : "請先選字母");
   pool = pool.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   if (!list && SP.count) pool = pool.slice(0, SP.count);
-  Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [], done: [], label: list ? "再練拼錯的字" : spScopeLabel(), t0: Date.now(), saved: false });
+  Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [], done: [], label: list ? "再練拼錯的字" : spScopeLabel() + (SP.mode === "learn" ? "（先學再考）" : ""), t0: Date.now(), saved: false });
   $("#spSetup").style.display = "none"; $("#spEnd").style.display = "none"; $("#spPlay").style.display = "";
   const first = SP.list.slice(0, 3);
+  SP.learnOn = SP.mode === "learn" && !list; // 「再練拼錯的字」直接考
+  if (SP.learnOn) { lnStart(0); return; }
   Promise.race([Promise.all(first.map(fetchAud)), new Promise(r => setTimeout(r, 1500))]).then(spShowQ);
 }
 function spShowQ() {
@@ -657,12 +683,13 @@ function spNext() {
   SP.done.push(spCur());
   SP.i++;
   if (SP.i >= SP.list.length) return spEnd();
+  if (SP.learnOn && SP.i % LN_SIZE === 0) return lnStart(SP.i);
   spShowQ();
 }
 function spEnd() {
   speechSynthesis && speechSynthesis.cancel();
   spRecord();
-  $("#spPlay").style.display = "none";
+  $("#spPlay").style.display = "none"; $("#spLearn").style.display = "none";
   const n = SP.i, acc = n ? Math.round(SP.right / n * 100) : 0;
   const prev = lsGet(bestKey(), 0), isBest = SP.score > prev; if (isBest) lsSet(bestKey(), SP.score);
   const medal = acc >= 90 ? "🏆" : acc >= 70 ? "🥈" : acc >= 50 ? "🥉" : "💪";
@@ -682,6 +709,93 @@ $("#spEnd").onclick = e => {
   if (e.target.id === "spAgain") spStart();
   if (e.target.id === "spBack") { $("#spEnd").style.display = "none"; $("#spSetup").style.display = ""; spScopeUI(); }
 };
+
+// ---------- 📚 先學再考：每 5 個字一組，先看、聽、跟著打，再考這 5 個 ----------
+const LN_SIZE = 5;
+SP.mode = lsGet("vq_spMode", "learn");
+function spModeUI() { document.querySelectorAll("#spMode .chip2").forEach(b => b.classList.toggle("on", b.dataset.v === SP.mode)); }
+$("#spMode").onclick = e => { const b = e.target.closest(".chip2"); if (!b) return; SP.mode = b.dataset.v; lsSet("vq_spMode", SP.mode); spModeUI(); };
+spModeUI();
+function lnStart(from) {
+  SP.lnFrom = from; SP.lnI = 0; SP.lnList = SP.list.slice(from, from + LN_SIZE);
+  $("#spPlay").style.display = "none"; $("#spLearn").style.display = "";
+  lnShow();
+}
+function lnShow() {
+  const k = SP.lnList[SP.lnI], w = bank[k], s = sents[k];
+  const grp = Math.floor(SP.lnFrom / LN_SIZE) + 1, grps = Math.ceil(SP.list.length / LN_SIZE);
+  $("#lnProg").textContent = `📚 第 ${grp}/${grps} 組｜學習 ${SP.lnI + 1} / ${SP.lnList.length}`;
+  $("#lnDots").innerHTML = SP.lnList.map((_, i) => `<i class="${i <= SP.lnI ? "on" : ""}"></i>`).join("");
+  $("#lnBody").innerHTML = `
+    <div class="ln-card">
+      <span class="ln-no">${esc(k)}</span>
+      <div class="ln-en">${esc(w.en)}</div>
+      <div class="ln-zh">${esc(w.zh)}</div>
+      ${s ? `<div class="ln-sent">🗣 ${lnHi(s[0], w.en)}${s[1] ? `<small>${esc(s[1])}</small>` : ""}</div>` : ""}
+    </div>
+    <div class="sp-tools">
+      <button class="btn small ghost" id="lnSay">🔊 聽發音</button>
+      <button class="btn small ghost" id="lnSlow">🐢 慢慢唸</button>
+      ${s ? `<button class="btn small ghost" id="lnSent">📖 聽例句</button>` : ""}
+    </div>
+    <label class="f" style="text-align:center">跟著打一次 👇</label>
+    <input type="text" class="sp-in" id="lnIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(w.en)}">
+    <div class="sp-fb" id="lnFb" style="min-height:36px"></div>
+    <div class="row" style="justify-content:center">
+      ${SP.lnI > 0 ? `<button class="btn ghost" id="lnPrev">← 上一個</button>` : ""}
+      <button class="btn big" id="lnNext">下一個 ➜</button>
+    </div>`;
+  $("#lnIn").focus();
+  const parts = [{ w: k }, { pause: 600 }, { w: k }];
+  speak(parts);
+  prefetchAud(SP.lnList.slice(SP.lnI + 1, SP.lnI + 3));
+}
+function lnHi(s, w) {
+  const base = String(w).replace(/\s*\(.*?\)/g, "").split("/")[0].trim();
+  const out = esc(s); if (!base) return out;
+  const re = new RegExp("\\b(" + base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[a-z]*)", "i");
+  return out.replace(re, "<b>$1</b>");
+}
+function lnNext() {
+  if (SP.lnI < SP.lnList.length - 1) { SP.lnI++; lnShow(); return; }
+  // 這一組學完 → 準備考試
+  speechSynthesis && speechSynthesis.cancel();
+  $("#lnProg").textContent = "📚 這一組學完了！";
+  $("#lnDots").innerHTML = "";
+  $("#lnBody").innerHTML = `<div class="ln-done"><div class="bee">👏</div><h2 style="margin:6px 0">這 ${SP.lnList.length} 個字學完了！</h2>
+    <div class="hint">${SP.lnList.map(k => esc(bank[k].en)).join("、")}</div>
+    <div class="hint" style="margin-top:8px">接下來會唸這 ${SP.lnList.length} 個字（順序會打亂），請拼出來</div>
+    <div class="row" style="justify-content:center;margin-top:18px"><button class="btn big orange" id="lnTest">▶ 開始考這 ${SP.lnList.length} 個字</button><button class="btn ghost" id="lnAgain">🔁 再看一次</button></div></div>`;
+}
+function lnBeginTest() {
+  // 把這一組在題目清單中打亂順序，再開始考
+  const a = SP.list.slice(SP.lnFrom, SP.lnFrom + LN_SIZE);
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  SP.list.splice(SP.lnFrom, a.length, ...a);
+  $("#spLearn").style.display = "none"; $("#spPlay").style.display = "";
+  spShowQ();
+}
+$("#spLearn").addEventListener("click", e => {
+  const id = e.target.id; const k = SP.lnList && SP.lnList[SP.lnI];
+  if (id === "lnSay") { spUnlock(); speak([{ w: k }]); $("#lnIn").focus(); }
+  else if (id === "lnSlow") { spUnlock(); speak([{ w: k, rate: .6 }]); $("#lnIn").focus(); }
+  else if (id === "lnSent") { spUnlock(); speak([{ t: sents[k][0] }]); $("#lnIn").focus(); }
+  else if (id === "lnNext") { spUnlock(); lnNext(); }
+  else if (id === "lnPrev") { SP.lnI--; lnShow(); }
+  else if (id === "lnTest") { spUnlock(); lnBeginTest(); }
+  else if (id === "lnAgain") { SP.lnI = 0; lnShow(); }
+  else if (id === "lnSkip") { spUnlock(); speechSynthesis && speechSynthesis.cancel(); lnBeginTest(); }
+});
+$("#spLearn").addEventListener("input", e => {
+  if (e.target.id !== "lnIn") return;
+  const k = SP.lnList[SP.lnI], v = e.target.value.trim();
+  if (v && spAnswers(bank[k].en).includes(spNorm(v))) {
+    e.target.className = "sp-in ok"; beep(true);
+    $("#lnFb").innerHTML = `<div style="color:var(--ok);font-weight:700">✅ 很好！</div>`;
+    clearTimeout(lnNext._t); lnNext._t = setTimeout(() => { if (SP.lnList[SP.lnI] === k) lnNext(); }, 900);
+  } else e.target.className = "sp-in";
+});
+$("#spLearn").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "lnIn") { e.preventDefault(); e.stopPropagation(); lnNext(); } });
 $("#spStart").onclick = () => { spUnlock(); spStart(); };
 document.addEventListener("touchend", spUnlock, { once: true });
 $("#spSpeak").onclick = () => { spUnlock(); spReadFull(); };
