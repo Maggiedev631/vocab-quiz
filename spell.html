@@ -190,6 +190,25 @@ tr.flag td{background:#fffbea}
 .names{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:10px}
 .names button{border:2.5px solid #26305a;background:#fff;border-radius:16px;padding:12px 6px;font:inherit;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 3px 0 #26305a;color:#26305a}
 .names button.on{background:#ffd84d}
+nav button[data-tab=review].on{background:var(--purple)}
+.rv-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.rv-bar button{border:2.5px solid #26305a;background:#fff;border-radius:12px;min-width:40px;padding:6px 8px;font:700 16px Fredoka,sans-serif;cursor:pointer;color:#26305a;box-shadow:0 3px 0 #26305a}
+.rv-bar button.on{background:var(--purple);color:#fff}
+.rv-list{margin-top:14px}
+.rv-item{border:2.5px solid #e6e0d2;border-radius:16px;margin-bottom:8px;background:#fff;overflow:hidden}
+.rv-row{display:grid;grid-template-columns:56px 1fr 1fr 44px;align-items:center;gap:8px;padding:10px 12px;cursor:pointer}
+.rv-row:hover{background:#fff6d6}
+.rv-no{color:var(--muted);font-size:14px;font-weight:700}
+.rv-en{font:700 21px Fredoka,sans-serif;color:#26305a}
+.rv-zh{font-size:16px}
+.rv-say{border:0;background:#ffd84d;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer}
+.rv-sent{display:none;padding:4px 14px 12px 76px;font-size:16px;color:#333}
+.rv-item.open .rv-sent{display:block}
+.rv-item.open{border-color:#26305a;background:#fffdf3}
+.rv-sent b{color:#d0021b}
+.rv-sent small{display:block;color:var(--muted);font-size:14px}
+.cover .rv-en.hid,.cover .rv-zh.hid{color:transparent;background:#efe9dc;border-radius:8px}
+@media (max-width:560px){.rv-row{grid-template-columns:44px 1fr 40px}.rv-zh{grid-column:2}.rv-say{grid-row:1/3;grid-column:3}.rv-sent{padding-left:14px}}
 .who{display:flex;align-items:center;gap:10px;font-weight:700;color:#26305a}
 .who .linkbtn{color:#26305a;text-decoration:underline}
 </style>
@@ -200,6 +219,10 @@ tr.flag td{background:#fffbea}
     <h1><span class="badge">Spelling Bee</span> 拼字練習 🐝</h1>
     <div class="who" id="who"></div>
   </div>
+  <nav id="nav" style="display:none">
+    <button data-tab="spell" class="on">🐝 拼字練習</button>
+    <button data-tab="review">📖 單字複習</button>
+  </nav>
 </div></header>
 <main>
   <section id="tab-login" class="on">
@@ -207,7 +230,7 @@ tr.flag td{background:#fffbea}
       <div class="sp-hero"><span class="bee">🐝</span><h2>Hi! 你是誰？</h2><div class="hint">輸入你的名字，再輸入老師給你的密碼</div></div>
       <div id="nameBox" style="margin-top:18px">
         <label class="f">你的名字</label>
-        <input type="text" id="nameIn" class="sp-in" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="例如 Leon">
+        <input type="text" id="nameIn" class="sp-in" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="例如 Maggie">
         <div style="text-align:center;margin-top:14px"><button class="btn big orange" id="nextBtn">下一步 ➜</button></div>
       </div>
       <div class="names" id="names" style="display:none"></div>
@@ -273,6 +296,20 @@ tr.flag td{background:#fffbea}
   </section>
 
 
+  <section id="tab-review">
+    <div class="card sp-wrap" style="max-width:860px">
+      <h2>📖 1200 單字複習</h2>
+      <input type="text" id="rvQ" placeholder="搜尋英文、中文或編號；也可以輸入範圍，例如 T44-T63">
+      <div class="rv-bar" id="rvLetters"></div>
+      <div class="row" style="margin-top:12px;gap:8px">
+        <span class="hint">自己考自己：</span>
+        <button class="chip2" id="rvHideEn">遮住英文</button>
+        <button class="chip2" id="rvHideZh">遮住中文</button>
+        <span class="hint" style="margin-left:auto">點單字看例句，🔊 聽發音</span>
+      </div>
+      <div class="rv-list" id="rvList"></div>
+    </div>
+  </section>
 </main>
 <div class="toast" id="toast"></div>
 <script>
@@ -322,7 +359,13 @@ function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch
 function fmtTime(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 const wbKey = () => "vq_wb_" + (ME ? ME.sid : "");
 const bestKey = () => "vq_best_" + (ME ? ME.sid : "");
-function show(id) { ["tab-login", "tab-spell"].forEach(x => $("#" + x).classList.toggle("on", x === id)); }
+function show(id) {
+  ["tab-login", "tab-spell", "tab-review"].forEach(x => $("#" + x).classList.toggle("on", x === id));
+  $("#nav").style.display = id === "tab-login" ? "none" : "";
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", "tab-" + b.dataset.tab === id));
+  if (id === "tab-review") renderReview();
+}
+document.querySelectorAll("#nav button").forEach(b => b.onclick = () => { speechSynthesis && speechSynthesis.cancel(); show("tab-" + b.dataset.tab); });
 
 // ---------- 登入 ----------
 let STUDENTS = [], pickSid = null, pickCls = lsGet("vq_cls", "");
@@ -616,10 +659,50 @@ $("#spIn").addEventListener("keydown", e => { if (e.key === "Enter") { e.prevent
 document.addEventListener("keydown", e => { if (e.key === "Enter" && SP.answered && $("#spPlay").style.display !== "none" && document.activeElement !== $("#spIn")) spNext(); });
 
 
+// ---------- 📖 單字複習 ----------
+let rvL = lsGet("vq_rvL", "A"), rvHide = { en: false, zh: false };
+const rvOpen = new Set();
+function renderReview() {
+  const keys = Object.keys(bank).sort(cmpKey);
+  if (!keys.length) { $("#rvList").innerHTML = `<div class="hint">題庫載入中…</div>`; return; }
+  const Ls = [...new Set(keys.map(k => splitKey(k)[0]))].sort();
+  const q = $("#rvQ").value.trim(), ql = q.toLowerCase(), pr = parseRange(q);
+  $("#rvLetters").innerHTML = Ls.map(L => `<button class="${!q && L === rvL ? "on" : ""}" data-l="${L}">${L}</button>`).join("");
+  let list;
+  if (pr) list = keys.filter(k => inRange(pr, k));
+  else if (q) list = keys.filter(k => k.toLowerCase() === ql || bank[k].en.toLowerCase().includes(ql) || String(bank[k].zh).includes(q));
+  else list = keys.filter(k => splitKey(k)[0] === rvL);
+  $("#rvList").className = "rv-list" + (rvHide.en || rvHide.zh ? " cover" : "");
+  $("#rvList").innerHTML = list.length ? list.slice(0, 300).map(k => {
+    const w = bank[k], s = sents[k], open = rvOpen.has(k);
+    return `<div class="rv-item ${open ? "open" : ""}" data-k="${k}">
+      <div class="rv-row"><span class="rv-no">${k}</span><span class="rv-en ${rvHide.en && !open ? "hid" : ""}">${esc(w.en)}</span><span class="rv-zh ${rvHide.zh && !open ? "hid" : ""}">${esc(w.zh)}</span><button class="rv-say" data-say="${k}" title="聽發音">🔊</button></div>
+      <div class="rv-sent">${s ? `🗣 ${hiWord(s[0], w.en)} <button class="linkbtn" data-sayS="${k}">🔊 例句</button>${s[1] ? `<small>${esc(s[1])}</small>` : ""}` : `<span class="hint">這個字沒有例句</span>`}</div>
+    </div>`;
+  }).join("") + (list.length > 300 ? `<div class="hint">還有 ${list.length - 300} 個，請縮小搜尋範圍</div>` : "") : `<div class="hint">找不到</div>`;
+}
+function hiWord(s, w) {
+  const base = String(w).replace(/\s*\(.*?\)/g, "").split("/")[0].trim();
+  const out = esc(s); if (!base) return out;
+  const re = new RegExp("\\b(" + base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[a-z]*)", "i");
+  return out.replace(re, "<b>$1</b>");
+}
+$("#rvQ").oninput = renderReview;
+$("#rvLetters").onclick = e => { const b = e.target.closest("[data-l]"); if (!b) return; rvL = b.dataset.l; lsSet("vq_rvL", rvL); $("#rvQ").value = ""; renderReview(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+$("#rvHideEn").onclick = () => { rvHide.en = !rvHide.en; $("#rvHideEn").classList.toggle("on", rvHide.en); rvOpen.clear(); renderReview(); };
+$("#rvHideZh").onclick = () => { rvHide.zh = !rvHide.zh; $("#rvHideZh").classList.toggle("on", rvHide.zh); rvOpen.clear(); renderReview(); };
+$("#rvList").onclick = e => {
+  const say = e.target.closest("[data-say]"); if (say) { spUnlock(); const t = spSayText(bank[say.dataset.say].en); speak([{ t }]); return; }
+  const ss = e.target.closest("[data-sayS]"); if (ss) { spUnlock(); speak([{ t: sents[ss.dataset.says][0] }]); return; }
+  const it = e.target.closest(".rv-item"); if (!it) return;
+  const k = it.dataset.k; rvOpen.has(k) ? rvOpen.delete(k) : rvOpen.add(k); renderReview();
+};
+
 // ---------- 載入 ----------
 Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").then(r => r.json()).catch(() => ({}))]).then(([b, s]) => {
   for (const k in b) bank[k] = Array.isArray(b[k]) ? { en: b[k][0], zh: b[k][1] } : b[k];
   sents = s;
+  if ($("#tab-review").classList.contains("on")) renderReview();
 }).catch(() => toast("題庫載入失敗，請重新整理"));
 loadStudents().then(async () => {
   const saved = lsGet("vq_me", null);
