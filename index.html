@@ -270,18 +270,19 @@ tr.flag td{background:#fffbea}
         <label class="switch" style="margin-top:10px"><input type="checkbox" id="spSent" checked> 唸完單字後唸例句</label>
       </details>
       <div style="text-align:center;margin-top:20px"><button class="btn big orange" id="spStart">▶ 開始練習</button></div>
+      <div class="hint" style="text-align:center;margin-top:12px">⭐ 計分：第一次就拼對 +2｜第二次才拼對 +1｜拼錯 −1｜💡 提示要花 5 顆星</div>
       <div class="hint" style="text-align:center;margin-top:10px" id="spBest"></div>
     </div>
 
     <div class="card sp-wrap" id="spPlay" style="display:none">
-      <div class="sp-top"><span id="spProg">第 1 / 20 題</span><span>⭐ <span id="spScore">0</span>　🔥 <span id="spStreak">0</span></span></div>
+      <div class="sp-top"><span id="spProg">第 1 / 20 題</span><span title="第一次就對 +2，第二次才對 +1，答錯 −1，提示 −5">⭐ <span id="spScore">0</span>　🔥 <span id="spStreak">0</span></span></div>
       <div class="sp-bar"><i id="spBarI" style="width:0%"></i></div>
       <button class="sp-speak" id="spSpeak" title="再唸一次">🔊</button>
       <div class="sp-tools">
         <button class="btn small ghost" id="spWord">🔊 只唸單字</button>
         <button class="btn small ghost" id="spSlow">🐢 慢慢唸</button>
         <button class="btn small ghost" id="spSentBtn">📖 例句</button>
-        <button class="btn small ghost" id="spHint">💡 提示</button>
+        <button class="btn small ghost" id="spHint">💡 提示（⭐−5）</button>
       </div>
       <input type="text" class="sp-in" id="spIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type here">
       <div class="sp-fb" id="spFb"></div>
@@ -824,11 +825,12 @@ function spSubmit() {
   const ok = spAnswers(w.en).includes(spNorm(typed));
   const inp = $("#spIn");
   if (ok) {
-    const pts = SP.hinted ? 5 : SP.tries ? 6 : 10;
-    SP.streak++; SP.score += pts + (SP.streak >= 3 ? 2 : 0); SP.right++;
+    // 計分：第一次就對 +2；第二次才對（或用了提示）+1
+    const pts = (SP.tries || SP.hinted) ? 1 : 2;
+    SP.streak++; SP.score += pts; SP.right++;
     SP.best = Math.max(SP.best, SP.streak);
     inp.className = "sp-in ok"; beep(true); confetti();
-    $("#spFb").innerHTML = `<div class="big" style="color:var(--ok)">✅ ${esc(w.en)}</div><div class="hintline">${esc(w.zh)}　+${pts}${SP.streak >= 3 ? "（連對加分 +2）" : ""}</div>`;
+    $("#spFb").innerHTML = `<div class="big" style="color:var(--ok)">✅ ${esc(w.en)}</div><div class="hintline">${esc(w.zh)}　⭐ +${pts}</div>`;
     if (spWrongBook[k]) { spWrongBook[k]--; if (spWrongBook[k] <= 0) delete spWrongBook[k]; lsSet("vq_wrongbook", spWrongBook); }
     SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
   } else if (SP.tries === 0) {
@@ -838,9 +840,10 @@ function spSubmit() {
     spReadFull();
   } else {
     SP.streak = 0; inp.className = "sp-in bad"; beep(false);
+    const lost = SP.score > 0 ? 1 : 0; SP.score -= lost; // 答錯扣 1 分（最低 0 分）
     SP.wrong.push({ k, typed });
     spWrongBook[k] = 2; lsSet("vq_wrongbook", spWrongBook); // 要再連續拼對 2 次才移出
-    $("#spFb").innerHTML = `<div class="hintline">你拼的：<span class="sp-diff">${esc(typed)}</span></div><div class="big sp-diff">❌ ${spDiff(typed, w.en)}</div><div class="hintline">${esc(w.zh)}　已加入錯字本</div>`;
+    $("#spFb").innerHTML = `<div class="hintline">你拼的：<span class="sp-diff">${esc(typed)}</span></div><div class="big sp-diff">❌ ${spDiff(typed, w.en)}</div><div class="hintline">${esc(w.zh)}　${lost ? "⭐ −1　" : ""}已加入錯字本</div>`;
     SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
     speak([{ w: k }]);
   }
@@ -880,9 +883,12 @@ $("#spWord").onclick = () => { speak([{ w: spCur() }]); $("#spIn").focus(); };
 $("#spSlow").onclick = () => { speak([{ w: spCur(), rate: .6 }]); $("#spIn").focus(); };
 $("#spSentBtn").onclick = () => { const s = sents[spCur()]; if (!s) return toast("這個字沒有例句"); speak([{ t: s[0] }]); $("#spIn").focus(); };
 $("#spHint").onclick = () => {
-  if (SP.answered) return;
-  const w = bank[spCur()]; SP.hinted = true;
-  $("#spFb").innerHTML = `<div class="hintline">💡 ${esc(w.zh)}｜開頭是 <b style="font-size:22px">${esc(w.en[0])}</b>，共 ${w.en.replace(/[^A-Za-z]/g, "").length} 個字母</div>`;
+  if (SP.answered || SP.hinted) return;
+  if (SP.score < 5) { toast("要有 5 顆星 ⭐ 才能換提示喔"); return; }
+  const w = bank[spCur()];
+  SP.hinted = true; SP.tries = 1; SP.score -= 5; // 用提示：扣 5 分，而且算第二次作答
+  $("#spScore").textContent = SP.score;
+  $("#spFb").innerHTML = `<div class="hintline">⭐ −5 換提示（這題答對 +1，答錯 −1）</div><div class="hintline">💡 ${esc(w.zh)}｜開頭是 <b style="font-size:22px">${esc(w.en[0])}</b>，共 ${w.en.replace(/[^A-Za-z]/g, "").length} 個字母</div>`;
   $("#spIn").focus();
 };
 $("#spGo").onclick = spSubmit;
