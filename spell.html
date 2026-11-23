@@ -204,13 +204,18 @@ tr.flag td{background:#fffbea}
 <main>
   <section id="tab-login" class="on">
     <div class="card sp-wrap" id="loginCard">
-      <div class="sp-hero"><span class="bee">🐝</span><h2>Hi! 你是誰？</h2><div class="hint">選你的名字，輸入老師給你的密碼</div></div>
-      <div id="clsBox" style="margin-top:14px"></div>
-      <div class="names" id="names"><div class="hint">載入中…</div></div>
+      <div class="sp-hero"><span class="bee">🐝</span><h2>Hi! 你是誰？</h2><div class="hint">輸入你的名字，再輸入老師給你的密碼</div></div>
+      <div id="nameBox" style="margin-top:18px">
+        <label class="f">你的名字</label>
+        <input type="text" id="nameIn" class="sp-in" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="例如 Leon">
+        <div style="text-align:center;margin-top:14px"><button class="btn big orange" id="nextBtn">下一步 ➜</button></div>
+      </div>
+      <div class="names" id="names" style="display:none"></div>
       <div id="pwBox" style="display:none;margin-top:18px">
         <label class="f" id="pwLabel">密碼</label>
         <input type="password" id="pw" class="sp-in" inputmode="text" autocomplete="off" placeholder="••••">
         <div style="text-align:center;margin-top:14px"><button class="btn big orange" id="loginBtn">登入</button></div>
+        <div style="text-align:center;margin-top:8px"><button class="linkbtn" id="backBtn">← 換名字</button></div>
       </div>
       <div id="loginMsg" style="margin-top:10px;text-align:center"></div>
     </div>
@@ -325,26 +330,35 @@ async function loadStudents() {
   try {
     const s = await db.collection("vq_students").get();
     STUDENTS = s.docs.map(d => ({ sid: d.id, ...d.data() })).sort((a, b) => (a.cls || "").localeCompare(b.cls || "") || (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name, "zh-Hant"));
-  } catch (e) { $("#names").innerHTML = `<div class="err">讀不到名單，請稍後再試</div>`; return; }
+  } catch (e) { $("#loginMsg").innerHTML = `<div class="err">讀不到名單，請稍後再試</div>`; return; }
   renderNames();
 }
-function renderNames() {
-  const classes = [...new Set(STUDENTS.map(s => s.cls || ""))].filter(Boolean).sort();
-  if (classes.length > 1) {
-    if (!classes.includes(pickCls)) pickCls = classes[0];
-    $("#clsBox").innerHTML = `<label class="f">班級</label><div class="chips">${classes.map(c => `<button class="chip2 ${c === pickCls ? "on" : ""}" data-cls="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
-  } else { $("#clsBox").innerHTML = ""; pickCls = classes[0] || ""; }
-  const list = STUDENTS.filter(s => !classes.length || classes.length === 1 || (s.cls || "") === pickCls);
-  $("#names").innerHTML = list.length ? list.map(s => `<button data-sid="${esc(s.sid)}" class="${s.sid === pickSid ? "on" : ""}">${esc(s.name)}</button>`).join("") : `<div class="hint">老師還沒有建立名單</div>`;
-}
-$("#clsBox").onclick = e => { const b = e.target.closest("[data-cls]"); if (!b) return; pickCls = b.dataset.cls; lsSet("vq_cls", pickCls); pickSid = null; $("#pwBox").style.display = "none"; renderNames(); };
-$("#names").onclick = e => {
-  const b = e.target.closest("[data-sid]"); if (!b) return;
-  pickSid = b.dataset.sid; renderNames();
-  const s = STUDENTS.find(x => x.sid === pickSid);
-  $("#pwLabel").textContent = `${s.name} 的密碼`; $("#pwBox").style.display = ""; $("#loginMsg").innerHTML = "";
+const normName = s => String(s || "").toLowerCase().replace(/\s+/g, "");
+function renderNames() { }
+function pickStudent(s) {
+  pickSid = s.sid;
+  $("#nameBox").style.display = "none"; $("#names").style.display = "none";
+  $("#pwLabel").textContent = `${s.name}${s.cls ? "（" + s.cls + "）" : ""} 的密碼`;
+  $("#pwBox").style.display = ""; $("#loginMsg").innerHTML = "";
   $("#pw").value = ""; $("#pw").focus();
+}
+function backToName() {
+  pickSid = null; $("#pwBox").style.display = "none"; $("#names").style.display = "none";
+  $("#nameBox").style.display = ""; $("#loginMsg").innerHTML = ""; $("#nameIn").focus();
+}
+$("#nextBtn").onclick = () => {
+  const q = normName($("#nameIn").value); if (!q) return $("#nameIn").focus();
+  if (!STUDENTS.length) { $("#loginMsg").innerHTML = `<div class="hint">名單載入中，請再按一次</div>`; return; }
+  const found = STUDENTS.filter(s => normName(s.name) === q);
+  if (!found.length) { $("#loginMsg").innerHTML = `<div class="err">找不到「${esc($("#nameIn").value.trim())}」，請檢查名字有沒有打錯，或問老師 🙂</div>`; return; }
+  if (found.length === 1) return pickStudent(found[0]);
+  $("#nameBox").style.display = "none"; $("#names").style.display = "";
+  $("#names").innerHTML = found.map(s => `<button data-sid="${esc(s.sid)}">${esc(s.name)}<br><small>${esc(s.cls || "")}</small></button>`).join("");
+  $("#loginMsg").innerHTML = `<div class="hint">有同名的同學，請選你的班級</div>`;
 };
+$("#nameIn").addEventListener("keydown", e => { if (e.key === "Enter") $("#nextBtn").click(); });
+$("#backBtn").onclick = backToName;
+$("#names").onclick = e => { const b = e.target.closest("[data-sid]"); if (b) pickStudent(STUDENTS.find(x => x.sid === b.dataset.sid)); };
 async function tryLogin(sid, pw) {
   const s = STUDENTS.find(x => x.sid === sid) || { name: "", cls: "" };
   // 規則會檢查密碼是否正確，錯的話寫不進去
@@ -364,7 +378,7 @@ function afterLogin() {
   $("#who").innerHTML = `👋 ${esc(ME.name)} <button class="linkbtn" id="logout">不是我</button>`;
   show("tab-spell"); spScopeUI();
 }
-$("#who").onclick = e => { if (e.target.id !== "logout") return; ME = null; lsSet("vq_me", null); $("#who").innerHTML = ""; pickSid = null; $("#pwBox").style.display = "none"; show("tab-login"); renderNames(); };
+$("#who").onclick = e => { if (e.target.id !== "logout") return; ME = null; lsSet("vq_me", null); $("#who").innerHTML = ""; $("#nameIn").value = ""; show("tab-login"); backToName(); };
 
 // ---------- 上傳紀錄給老師 ----------
 function spScopeLabel() {
