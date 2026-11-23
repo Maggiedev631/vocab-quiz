@@ -264,7 +264,7 @@ pre.rules{background:#1d2433;color:#e6f0ff;padding:14px;border-radius:12px;font-
     </div>
     <div class="card">
       <h2>🔒 資料庫規則（只要設定一次）</h2>
-      <div class="warn">要先把下面的規則貼到 Firebase，學生的密碼檢查才會生效，名單和成績也才會只有老師看得到。<br>步驟：Firebase 主控台 → amc-spelling-star → Firestore Database → 規則 → 全部取代成下面的內容 → 發布。<br>（已經包含原本「拼字之星」需要的規則，不會影響拼字之星。）</div>
+      <div class="warn">要先把下面的規則貼到 Firebase，學生的密碼檢查才會生效，名單和成績也才會只有老師看得到。<br>步驟：Firebase 主控台 → amc-spelling-star → Firestore Database → 規則 → 全部取代成下面的內容 → 發布。<br>（已經包含「拼字之星」和「國一英文練功房」需要的規則，不會影響它們。）</div>
       <div class="row" style="margin-bottom:8px"><button class="btn small" id="copyRules">複製規則</button><a class="linkbtn" href="https://console.firebase.google.com/project/amc-spelling-star/firestore/rules" target="_blank" rel="noopener">開啟 Firebase 規則頁 ↗</a></div>
       <pre class="rules" id="rules"></pre>
     </div>
@@ -484,6 +484,10 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/vq_secrets/$(sid))
         && get(/databases/$(database)/documents/vq_secrets/$(sid)).data.pw == request.resource.data.pw;
     }
+    function g7PwOk(sid) {
+      return exists(/databases/$(database)/documents/g7_secrets/$(sid))
+        && get(/databases/$(database)/documents/g7_secrets/$(sid)).data.pw == request.resource.data.pw;
+    }
 
     // ===== 拼字之星（原本就在用的）=====
     match /roster/{id} { allow read: if true; allow write: if isTeacher(); }
@@ -504,6 +508,20 @@ service cloud.firestore {
     match /vq_results/{id}   {
       allow read, delete: if isTeacher();
       allow create: if request.resource.data.sid is string && pwOk(request.resource.data.sid);
+    }
+
+    // ===== 國一英文練功房 =====
+    match /g7_students/{sid} { allow read: if true; allow write: if isTeacher(); }
+    match /g7_secrets/{sid}  { allow read, write: if isTeacher(); }
+    match /g7_login/{sid}    { allow read, delete: if isTeacher(); allow create, update: if g7PwOk(sid); }
+    match /g7_progress/{key} {
+      allow get: if true;
+      allow list, delete: if isTeacher();
+      allow create, update: if isTeacher() || (request.resource.data.sid is string && g7PwOk(request.resource.data.sid));
+    }
+    match /g7_results/{id} {
+      allow read, delete: if isTeacher();
+      allow create: if request.resource.data.sid is string && g7PwOk(request.resource.data.sid);
     }
   }
 }`;
