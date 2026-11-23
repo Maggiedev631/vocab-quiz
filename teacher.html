@@ -397,7 +397,7 @@ $("#recCopy").onclick = async () => {
 
 // ---------- 學生帳號 ----------
 $("#addBtn").onclick = async () => {
-  const lines = $("#addTxt").value.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const lines = $("#addTxt").value.split(/\n/).map(l => l.replace(/（[^（）]*）/g, "").trim()).filter(Boolean); // 去掉上次留下的錯誤說明
   const bad = []; let n = 0; $("#addBtn").disabled = true;
   for (const l of lines) {
     const p = l.split(/[\s,，\t]+/).filter(Boolean);
@@ -411,7 +411,7 @@ $("#addBtn").onclick = async () => {
       await ref.set({ name, cls, order: Date.now() + n });
       await db.collection("vq_secrets").doc(ref.id).set({ pw });
       n++;
-    } catch (e) { bad.push(l + "（" + (e.code || "失敗") + "）"); }
+    } catch (e) { bad.push(l + (e.code === "permission-denied" ? "（沒有權限：請先到「⚙️ 設定」貼上規則）" : "（" + (e.code || "失敗") + "）")); }
   }
   $("#addBtn").disabled = false;
   $("#addTxt").value = bad.join("\n");
