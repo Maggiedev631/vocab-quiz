@@ -662,19 +662,51 @@ function spAnswers(w) { // 可接受的拼法
 function spNorm(s) { return String(s).toLowerCase().replace(/[’']/g, "'").replace(/\./g, "").replace(/\s+/g, " ").trim(); }
 function spSayText(w) { return w.replace(/\s*\((.*?)\)/g, ", $1").replace(/\//g, ", or "); }
 function spLoadVoices() {
-  spVoices = (speechSynthesis.getVoices() || []).filter(v => /^en(-|_)/i.test(v.lang));
-  const pref = ["Samantha", "Google US English", "Microsoft Aria", "Microsoft Jenny", "Alex", "Karen", "Daniel"];
-  spVoices.sort((a, b) => { const ia = pref.findIndex(p => a.name.includes(p)), ib = pref.findIndex(p => b.name.includes(p)); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a.lang === "en-US" ? -1 : 1); });
+  // 排除 Mac/iPhone 內建的特效怪聲音（Bubbles、Zarvox…），優先用比較自然的聲音
+  const odd = /Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph|Grandma|Grandpa|Eddy|Flo|Reed|Rocko|Sandy|Shelley/i;
+  spVoices = (speechSynthesis.getVoices() || []).filter(v => /^en(-|_)/i.test(v.lang) && !odd.test(v.name));
+  const score = v => { const n = v.name; let s = 0;
+    if (/Premium|Enhanced|Neural|Natural|Online/i.test(n)) s -= 30;
+    const pref = ["Samantha", "Google US English", "Microsoft Aria", "Microsoft Jenny", "Microsoft Guy", "Ava", "Allison", "Susan", "Tom", "Alex", "Karen", "Daniel", "Google UK English Female"];
+    const i = pref.findIndex(p => n.includes(p)); s += i < 0 ? 50 : i;
+    if (!/en[-_]US/i.test(v.lang)) s += 20; return s; };
+  spVoices.sort((a, b) => score(a) - score(b));
   const saved = lsGet("vq_voice", "");
   $("#spVoice").innerHTML = spVoices.map(v => `<option value="${esc(v.name)}" ${v.name === saved ? "selected" : ""}>${esc(v.name)}（${esc(v.lang)}）</option>`).join("") || `<option>（使用預設聲音）</option>`;
 }
 if ("speechSynthesis" in window) { spLoadVoices(); speechSynthesis.onvoiceschanged = spLoadVoices; }
 $("#spVoice").onchange = () => lsSet("vq_voice", $("#spVoice").value);
+// ---- 真人發音：先找字典的真人錄音，找不到才用電腦語音 ----
+const AUD = new Audio(); AUD.preload = "auto";
+const audCache = lsGet("vq_aud", {}); // 單字 → 錄音網址（"" 表示沒有）
+const audWord = k => { const e = bank[k] ? bank[k].en : ""; return /^[A-Za-z][A-Za-z'-]*$/.test(e) ? e.toLowerCase() : ""; };
+const audPending = {};
+function fetchAud(k) {
+  const w = audWord(k); if (!w) return Promise.resolve("");
+  if (w in audCache) return Promise.resolve(audCache[w]);
+  if (audPending[w]) return audPending[w];
+  return audPending[w] = fetch("https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(w)).then(r => r.ok ? r.json() : []).then(j => {
+    const urls = (Array.isArray(j) ? j : []).flatMap(e => (e.phonetics || []).map(p => p.audio)).filter(Boolean);
+    const url = urls.find(u => /-us\.mp3$/i.test(u)) || urls.find(u => /-(uk|au|ca)\.mp3$/i.test(u)) || urls[0] || "";
+    audCache[w] = url; lsSet("vq_aud", audCache); return url;
+  }).catch(() => "").finally(() => { delete audPending[w]; });
+}
+function prefetchAud(keys) { keys.filter(Boolean).forEach(k => fetchAud(k)); }
+function playUrl(url, rate) {
+  return new Promise(res => {
+    let done = false; const fin = () => { if (!done) { done = true; AUD.onended = AUD.onerror = null; res(true); } };
+    AUD.onended = fin; AUD.onerror = () => { if (!done) { done = true; res(false); } };
+    AUD.src = url; AUD.playbackRate = rate || 1; try { AUD.preservesPitch = true; } catch {}
+    const p = AUD.play(); if (p && p.catch) p.catch(() => { if (!done) { done = true; res(false); } });
+    setTimeout(fin, 6000);
+  });
+}
 $("#spRate").value = lsGet("vq_rate", 0.85);
 const spRateLabel = () => $("#spRateV").textContent = "×" + (+$("#spRate").value).toFixed(2);
 $("#spRate").oninput = () => { lsSet("vq_rate", +$("#spRate").value); spRateLabel(); }; spRateLabel();
 let spUnlocked = false;
 function spUnlock() { // iPhone/iPad：要在「點按的當下」先出聲一次，之後才能自動朗讀
+  if (!spUnlocked) { try { AUD.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="; const p = AUD.play(); if (p && p.catch) p.catch(() => {}); } catch {} }
   if (spUnlocked || !("speechSynthesis" in window)) return;
   try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0.01; speechSynthesis.speak(u); spUnlocked = true; } catch {}
   if (!spVoices.length) spLoadVoices();
@@ -689,6 +721,12 @@ function speak(parts) { // parts: [{t, rate, pause}]
   const say = part => new Promise(res => {
     if (token !== speak.token) return res();
     if (part.pause) return setTimeout(res, part.pause);
+    if (part.w) {
+      const w = audWord(part.w), url = w ? audCache[w] : "";
+      if (url) { playUrl(url, part.rate ? .75 : 1).then(ok => ok ? res() : say({ t: spSayText(bank[part.w].en), rate: part.rate }).then(res)); return; }
+      if (w && !(w in audCache)) fetchAud(part.w);
+      part = { t: spSayText(bank[part.w].en), rate: part.rate };
+    }
     const u = new SpeechSynthesisUtterance(part.t);
     if (v) u.voice = v;
     u.lang = v ? v.lang : "en-US";
@@ -706,10 +744,9 @@ function speak(parts) { // parts: [{t, rate, pause}]
 function spCur() { return SP.list[SP.i]; }
 function spReadFull() {
   const w = spCur(); if (!w) return;
-  const t = spSayText(bank[w].en);
-  const parts = [{ t }, { pause: 700 }, { t }];
+  const parts = [{ w }, { pause: 700 }, { w }];
   const s = sents[w];
-  if ($("#spSent").checked && s) parts.push({ pause: 800 }, { t: s[0] }, { pause: 700 }, { t });
+  if ($("#spSent").checked && s) parts.push({ pause: 800 }, { t: s[0] }, { pause: 700 }, { w });
   return speak(parts);
 }
 // 範圍選擇
@@ -748,10 +785,12 @@ function spStart(list) {
   if (!list && SP.count) pool = pool.slice(0, SP.count);
   Object.assign(SP, { list: pool, i: 0, score: 0, streak: 0, best: 0, right: 0, wrong: [] });
   $("#spSetup").style.display = "none"; $("#spEnd").style.display = "none"; $("#spPlay").style.display = "";
-  spShowQ();
+  const first = SP.list.slice(0, 3);
+  Promise.race([Promise.all(first.map(fetchAud)), new Promise(r => setTimeout(r, 1500))]).then(spShowQ);
 }
 function spShowQ() {
   Object.assign(SP, { hinted: false, answered: false, tries: 0 });
+  prefetchAud(SP.list.slice(SP.i, SP.i + 3));
   $("#spProg").textContent = `第 ${SP.i + 1} / ${SP.list.length} 題`;
   $("#spBarI").style.width = (SP.i / SP.list.length * 100) + "%";
   $("#spScore").textContent = SP.score; $("#spStreak").textContent = SP.streak;
@@ -803,7 +842,7 @@ function spSubmit() {
     spWrongBook[k] = 2; lsSet("vq_wrongbook", spWrongBook); // 要再連續拼對 2 次才移出
     $("#spFb").innerHTML = `<div class="hintline">你拼的：<span class="sp-diff">${esc(typed)}</span></div><div class="big sp-diff">❌ ${spDiff(typed, w.en)}</div><div class="hintline">${esc(w.zh)}　已加入錯字本</div>`;
     SP.answered = true; inp.disabled = true; $("#spGo").textContent = "下一題 ➜";
-    speak([{ t: spSayText(w.en) }]);
+    speak([{ w: k }]);
   }
   $("#spScore").textContent = SP.score; $("#spStreak").textContent = SP.streak;
 }
@@ -829,7 +868,7 @@ function spEnd() {
     </div>`;
 }
 $("#spEnd").onclick = e => {
-  const s = e.target.closest("[data-say]"); if (s) { const w = bank[s.dataset.say]; const t = spSayText(w.en); speak([{ t }, { pause: 500 }, { t, rate: .7 }]); return; }
+  const s = e.target.closest("[data-say]"); if (s) { speak([{ w: s.dataset.say }, { pause: 500 }, { w: s.dataset.say, rate: .7 }]); return; }
   if (e.target.id === "spRetryWrong") spStart(SP.wrong.map(x => x.k));
   if (e.target.id === "spAgain") spStart();
   if (e.target.id === "spBack") { $("#spEnd").style.display = "none"; $("#spSetup").style.display = ""; spScopeUI(); }
@@ -837,8 +876,8 @@ $("#spEnd").onclick = e => {
 $("#spStart").onclick = () => { spUnlock(); spStart(); };
 document.addEventListener("touchend", spUnlock, { once: true });
 $("#spSpeak").onclick = () => { spUnlock(); spReadFull(); };
-$("#spWord").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t }]); $("#spIn").focus(); };
-$("#spSlow").onclick = () => { const t = spSayText(bank[spCur()].en); speak([{ t, rate: .6 }]); $("#spIn").focus(); };
+$("#spWord").onclick = () => { speak([{ w: spCur() }]); $("#spIn").focus(); };
+$("#spSlow").onclick = () => { speak([{ w: spCur(), rate: .6 }]); $("#spIn").focus(); };
 $("#spSentBtn").onclick = () => { const s = sents[spCur()]; if (!s) return toast("這個字沒有例句"); speak([{ t: s[0] }]); $("#spIn").focus(); };
 $("#spHint").onclick = () => {
   if (SP.answered) return;
