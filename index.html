@@ -231,6 +231,7 @@ tr.flag td{background:#fffbea}
     <button data-tab="make" class="on">📝 出考卷</button>
     <button data-tab="spell">🐝 拼字練習</button>
     <button data-tab="bank">📚 題庫</button>
+    <button id="i18nBtn" style="margin-left:auto;background:#26305a;color:#fff">🌐 English</button>
   </nav>
 </div></header>
 <main>
@@ -1165,6 +1166,127 @@ Promise.all([fetch("bank.json").then(r => r.json()), fetch("sentences.json").the
 }).catch(() => mkMsg(`<div class="err">題庫載入失敗，請重新整理</div>`));
 function fmtTime(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 renderPaper(); renderRecords();
+// ---------- 🌐 中英文介面切換 ----------
+// 只翻介面文字；單字的中文意思、例句、考卷內容不翻
+const I18N_PAIRS = [
+  ["📝 出考卷", "📝 Make Quiz"], ["🐝 拼字練習", "🐝 Spelling"], ["📚 題庫", "📚 Word Bank"],
+  ["單字小考 ✏️", "1200 Words ✏️"], ["份", "copies"], ["輸入考試範圍，例如 T24-T43", "Enter a range, e.g. T24-T43"],
+  ["🔀 亂序", "🔀 Shuffle"], ["🖨 下載考卷", "🖨 Download"], ["含老師答案版", "Include answer key"],
+  ["印很多份時，每一份的順序都不一樣，右上角 No. 也不同。勾「含老師答案版」會在 PDF 最後附上每個 No. 的紅字答案頁。", "When printing many copies, each copy has a different order and its own No. With \"Include answer key\", answer pages for each No. are added at the end of the PDF."],
+  ["看答案", "Show"], ["幾號", "No."], ["回到原始順序", "Original order"], ["👆 點單字看例句", "👆 Tap a word for its sentence"],
+  ["🗣 全部例句", "🗣 All sentences"], ["🙈 全部收起", "🙈 Hide all"], ["顯示答案", "Show answers"], ["更多設定", "More settings"],
+  ["空白卷（學生寫英文和中文）", "Blank (write English & Chinese)"], ["看中文，寫英文", "Chinese → write English"], ["看英文，寫中文", "English → write Chinese"],
+  ["混合（隨機出中文或英文）", "Mixed (random)"], ["每張 A4 印幾份", "Copies per A4 page"], ["2 份（上下對切）", "2 (cut in half)"], ["1 份", "1"],
+  ["日期（會印在考卷上）", "Date (printed on the quiz)"], ["例如 11/20", "e.g. 11/20"],
+  ["📋 所有考卷紀錄", "📋 All quiz records"], ["輸入 No.（例如 37）或範圍（例如 T24-T43）", "Enter a No. (e.g. 37) or a range (e.g. T24-T43)"],
+  ["紀錄存在這台裝置的瀏覽器。換電腦或手機時，輸入範圍和 No. 一樣看得到同一份答案。", "Records are saved in this browser. On another device, enter the range and No. to see the same answers."],
+  ["還沒有產生過考卷，按「🔀 亂序」或「🖨 下載考卷」就會記錄在這裡", "No quizzes yet. Press \"🔀 Shuffle\" or \"🖨 Download\" and they will be listed here."],
+  ["👆 輸入考試範圍，考卷就會出現在這裡", "👆 Enter a range and the quiz will appear here"],
+  ["✨ 新範圍，還沒出過考卷", "✨ New range – no quiz yet"], ["找不到符合的範圍", "No matching range"],
+  ["還沒出過考卷，輸入範圍（例如 T24-T43）就能開始", "No quizzes yet – enter a range (e.g. T24-T43) to start"],
+  ["範圍格式請寫成像 T24-T43", "Please write the range like T24-T43"], ["範圍格式請寫成像 T24-T63", "Please write the range like T24-T63"],
+  ["請先輸入範圍，例如 T24-T43", "Please enter a range first, e.g. T24-T43"], ["請先輸入範圍", "Please enter a range first"], ["請輸入 No. 號碼", "Please enter a No."],
+  ["題庫缺少：", "Missing from word bank: "], ["題庫裡沒有", "No words in the bank for"], ["排版中…", "Laying out…"],
+  ["（最後幾頁是老師答案版）", "(answer key on the last pages)"], ["下載失敗：", "Download failed: "], ["PDF 元件載入失敗，請重新整理", "PDF tool failed to load – please refresh"],
+  ["題庫載入失敗，請重新整理", "Word bank failed to load – please refresh"], ["題庫還在載入，請稍等", "Word bank is loading, please wait"],
+  ["寫出英文單字和中文意思", "Write the English word and its meaning"], ["看中文，寫出英文單字", "Write the English word"], ["看英文，寫出中文意思", "Write the Chinese meaning"],
+  ["看題目，寫出英文單字或中文意思", "Write the English word or Chinese meaning"],
+  ["Spelling Bee 拼字練習", "Spelling Bee"], ["聽老師唸兩次單字和例句，拼出這個字！", "Listen to the word (twice) and the sentence, then spell it!"],
+  ["📈 我的 1200 單進度", "📈 My 1200-word progress"], ["學過", "Seen"], ["會了", "Mastered"], ["不熟", "Weak"], ["還沒學", "New"],
+  ["🆕 學新的字", "🆕 Learn new words"], ["各字母進度 ▾", "By letter ▾"], ["點一下看清單", "Tap to see the list"],
+  ["🟩 會了　🟨 看過還沒考　🟥 不熟　⬜ 還沒學", "🟩 Mastered　🟨 Seen, not tested　🟥 Weak　⬜ New"],
+  ["練習範圍", "Words to practise"], ["全部 1200 單", "All 1200 words"], ["選字母", "By letter"], ["自訂範圍", "Custom range"], ["📕 錯字本", "📕 Wrong words"],
+  ["可以選很多個字母", "You can pick several letters"], ["例如 T24-T63 或 A1-C20", "e.g. T24-T63 or A1-C20"], ["清空錯字本", "Clear wrong words"],
+  ["題數", "Number of words"], ["10 題", "10"], ["20 題", "20"], ["50 題", "50"], ["練習方式", "Mode"], ["📚 先學再考", "📚 Learn, then test"], ["⚡ 直接考", "⚡ Test only"],
+  ["每組幾個字", "Words per group"], ["5 個", "5"], ["10 個", "10"], ["20 個", "20"], ["先學幾組（每組學完都可以休息或結束）", "How many groups (you can stop after any group)"],
+  ["1 組", "1 group"], ["2 組", "2 groups"], ["3 組", "3 groups"], ["4 組", "4 groups"],
+  ["聲音設定", "Sound settings"], ["語速", "Speed"], ["聲音", "Voice"], ["唸完單字後唸例句", "Read the example sentence after the word"], ["（使用預設聲音）", "(default voice)"],
+  ["▶ 開始練習", "▶ Start"], ["🏆 最高分", "🏆 Best"],
+  ["🔊 只唸單字", "🔊 Word only"], ["🐢 慢慢唸", "🐢 Slowly"], ["📖 例句", "📖 Sentence"], ["💡 提示（⭐−5）", "💡 Hint (⭐−5)"],
+  ["✔ 送出", "✔ Check"], ["下一題 ➜", "Next ➜"], ["跳過", "Skip"], ["結束", "Quit"], ["再唸一次", "Say again"],
+  ["差一點！再聽一次，再試一次 💪", "So close! Listen again and try once more 💪"], ["你拼的：", "You typed: "], ["已加入錯字本", "added to Wrong words"],
+  ["要有 5 顆星 ⭐ 才能換提示喔", "You need 5 ⭐ to use a hint"], ["⭐ −5 換提示（這題答對 +1，答錯 −1）", "⭐ −5 for a hint (correct +1, wrong −1)"],
+  ["｜開頭是", " · starts with"], ["個字母", " letters"], ["，共", ", "],
+  ["📚 這一組學完了！", "📚 Group finished!"], ["跳過學習，直接考 ➜", "Skip learning, test now ➜"], ["🔊 聽發音", "🔊 Listen"], ["📖 聽例句", "📖 Sentence"],
+  ["跟著打一次 👇", "Type it once 👇"], ["✅ 很好！", "✅ Great!"], ["← 上一個", "← Back"], ["下一個 ➜", "Next ➜"], ["🔁 再看一次", "🔁 Review again"],
+  ["今天先到這裡", "Stop for today"], ["這個字沒有例句", "No sentence for this word"], ["（這個字沒有例句）", "(no sentence)"],
+  ["分數", "Score"], ["答對", "Correct"], ["正確率", "Accuracy"], ["最長連對", "Best streak"], ["📕 這次拼錯的字", "📕 Words you missed"],
+  ["全部拼對，太厲害了！", "All correct – amazing!"], ["🔁 再練拼錯的字", "🔁 Practise missed words"], ["▶ 再玩一次", "▶ Play again"], ["回設定", "Settings"],
+  ["🎉 新的最高分！", "🎉 New best score!"], ["錯字本是空的 🎉", "No wrong words 🎉"], ["請先選字母", "Please choose letters first"],
+  ["這個瀏覽器不支援朗讀，請用 Safari 或 Chrome 打開", "This browser can't read aloud – please use Safari or Chrome"],
+  ["📚 1200 單題庫", "📚 1200-word bank"], ["個單字", " words"], ["搜尋編號、英文或中文；輸入 T44-T63 可看範圍", "Search number, English or Chinese; enter T44-T63 for a range"],
+  ["找不到", "Not found"], ["｜你拼：", " · you typed: "], ["｜答對", " · correct"], ["點一下看例句", "Tap for sentence"],
+  ["第一次就對 +2，第二次才對 +1，答錯 −1，提示 −5", "1st try +2, 2nd try +1, wrong −1, hint −5"],
+  ["空白卷", "Blank"], ["看中文寫英文", "Chinese → English"], ["看英文寫中文", "English → Chinese"], ["混合", "Mixed"], ["題型", "Question type"]
+];
+const I18N_RX = [
+  [/第 (\d+) \/ (\d+) 題/g, "Question $1 / $2"],
+  [/📚 第 (\d+)\/(\d+) 組｜學習 (\d+) \/ (\d+)/g, "📚 Group $1/$2 · word $3 / $4"],
+  [/✅ 第 (\d+) 組完成/g, "✅ Group $1 done"], [/第 (\d+) 組完成！/g, "Group $1 done!"],
+  [/▶ 繼續第 (\d+) 組（還有 (\d+) 組）/g, "▶ Go on to group $1 ($2 left)"],
+  [/這 (\d+) 個字學完了！/g, "You learned these $1 words!"],
+  [/接下來會唸這 (\d+) 個字（順序會打亂），請拼出來/g, "Next, these $1 words will be read in random order – spell them"],
+  [/▶ 開始考這 (\d+) 個字/g, "▶ Test these $1 words"],
+  [/目前 ⭐ (-?\d+)｜答對 (\d+) \/ (\d+)/g, "Now ⭐ $1 · correct $2 / $3"],
+  [/🎯 練不熟的字（(\d+)）/g, "🎯 Practise weak words ($1)"],
+  [/📋 出過的考卷（(\d+) 個範圍）/g, "📋 Past quizzes ($1 ranges)"],
+  [/(\d+) 份｜最近 /g, "$1 copies · latest "],
+  [/錯字本有 (\d+) 個字。拼錯的字會自動加進來，連續拼對 2 次就會移出。/g, "$1 words in Wrong words. Missed words are added automatically and removed after 2 correct answers in a row."],
+  [/還有 (\d+) 個，請用搜尋縮小範圍/g, "$1 more – narrow your search"],
+  [/…還有 (\d+) 份/g, "…$1 more"],
+  [/✅ 已下載 No\./g, "✅ Downloaded No."], [/（每份順序不同，可用上方選單切換看答案）/g, " (each copy has a different order)"],
+  [/｜　亂序第 (\d+) 份/g, "　|　shuffle #$1"], [/｜　原始順序（按「🔀 亂序」打亂）/g, "　|　original order (press 🔀 Shuffle)"],
+  [/^(\d+) 個$/g, "$1 words"], [/^(\d+)\/(\d+)$/g, "$1/$2"]
+].concat([[/新範圍，還沒出過考卷/g, "New range – no quiz yet"]]);
+const I18N_LONG = I18N_PAIRS.filter(p => p[0].length >= 4).sort((a, b) => b[0].length - a[0].length);
+const I18N_EXACT = new Map(I18N_PAIRS);
+const I18N_SKIP = ".paper, .ln-zh, .ln-sent, .rv-zh, .rv-sent, #bankList, .st-words, .sp-in, script, style, #i18nBtn";
+let LANG = lsGet("vq_lang", "zh");
+const i18nOrig = new WeakMap();   // 文字節點 → 原本的中文
+const i18nAttr = new WeakMap();   // 元素 → {placeholder, title}
+let i18nBusy = false;
+function i18nStr(s) {
+  const t = s.trim(); if (!t || !/[一-鿿]/.test(t)) return s;
+  if (I18N_EXACT.has(t)) return s.replace(t, I18N_EXACT.get(t));
+  let out = s;
+  for (const [re, rep] of I18N_RX) out = out.replace(re, rep);
+  for (const [a, b] of I18N_LONG) if (out.includes(a)) out = out.split(a).join(b);
+  return out;
+}
+function i18nNode(n) {
+  if (n.nodeType === 3) {
+    const p = n.parentElement; if (!p || p.closest(I18N_SKIP)) return;
+    const cur = n.nodeValue;
+    if (LANG === "en") { const tr = i18nStr(cur); if (tr !== cur) { i18nOrig.set(n, cur); n.nodeValue = tr; } }
+    else if (i18nOrig.has(n)) { n.nodeValue = i18nOrig.get(n); i18nOrig.delete(n); }
+    return;
+  }
+  if (n.nodeType !== 1 || n.closest(I18N_SKIP)) return;
+  for (const a of ["placeholder", "title"]) {
+    if (!n.hasAttribute(a)) continue;
+    const o = i18nAttr.get(n) || {};
+    if (LANG === "en") { const v = n.getAttribute(a), tr = i18nStr(v); if (tr !== v) { o[a] = v; i18nAttr.set(n, o); n.setAttribute(a, tr); } }
+    else if (o[a] != null) { n.setAttribute(a, o[a]); delete o[a]; }
+  }
+  n.childNodes.forEach(i18nNode);
+}
+function applyLang() {
+  i18nBusy = true;
+  document.documentElement.lang = LANG === "en" ? "en" : "zh-Hant";
+  document.title = LANG === "en" ? "Vocab Quiz" : "單字小考 Vocab Quiz";
+  i18nNode(document.body);
+  $("#i18nBtn").textContent = LANG === "en" ? "🌐 中文" : "🌐 English";
+  i18nBusy = false;
+}
+new MutationObserver(ms => {
+  if (i18nBusy || LANG !== "en") return;
+  i18nBusy = true;
+  ms.forEach(m => { if (m.type === "characterData") { i18nOrig.delete(m.target); i18nNode(m.target); } else m.addedNodes.forEach(i18nNode); });
+  i18nBusy = false;
+}).observe(document.body, { childList: true, subtree: true, characterData: true });
+$("#i18nBtn").onclick = () => { LANG = LANG === "en" ? "zh" : "en"; lsSet("vq_lang", LANG); applyLang(); };
+applyLang();
+
 </script>
 </body>
 </html>
