@@ -448,7 +448,7 @@ function drawQuiz(ctx, ox, oy, w, h, paper, date, withKey) {
   if (!paper.empty) { ctx.font = `900 34px ${FONT}`; ctx.fillText(String(paper.code), x1 - 140, y); }
   y += 44;
   ctx.font = `500 22px ${FONT}`; ctx.fillStyle = "#333";
-  const instr = { blank: "寫出英文單字和中文意思", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[paper.mode];
+  const instr = { blank: "", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[paper.mode];
   ctx.font = `700 24px ${FONT}`; ctx.fillStyle = "#000"; ctx.fillText("Date:", x0, y);
   if (date) { ctx.font = `500 24px ${FONT}`; ctx.fillText(date, x0 + 72, y - 2); }
   ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x0 + 68, y + 4); ctx.lineTo(x0 + 250, y + 4); ctx.stroke();
@@ -584,11 +584,11 @@ function renderPaper() {
     return `<tr class="sent"><td></td><td colspan="2">🗣 ${hiWord(s[0], it.en)}${s[1] ? `<small>${esc(s[1])}</small>` : ""}</td></tr>`;
   };
   const tbl = (from, to) => `<table><colgroup><col class="c1"><col class="c2"><col></colgroup><thead><tr><th></th><th>English</th><th>Chinese</th></tr></thead><tbody>${p.items.slice(from, to).map((it, i) => `<tr class="wr ${isOpen(it) ? "w open" : ""}" data-sk="${esc(it.key)}" title="點一下看例句"><td class="n">${from + i + 1}</td><td>${cell(it, "en")}</td><td>${cell(it, "zh")}</td></tr>${sentRow(it)}`).join("")}</tbody></table>`;
-  const instr = { blank: "寫出英文單字和中文意思", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[p.mode];
+  const instr = { blank: "", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[p.mode];
   $("#paperView").innerHTML = `<div class="paper ${$("#mkShowAns").checked ? "" : "hide"}">
     <div class="ph"><span>Name: <span class="ln"></span></span><span>Range: <span style="font-weight:500">${esc(p.range)}</span></span><span>Score: <span class="ln" style="width:80px"></span></span>
       <span class="no">No.<b>${p.code ? esc(p.code) : "—"}</b></span></div>
-    <div class="pi">${esc(instr)}${p.code ? `　｜　亂序第 ${esc(p.code)} 份` : "　｜　原始順序（按「🔀 亂序」打亂）"}</div>
+    <div class="pi">${esc(instr)}${p.code ? `${instr ? "　｜　" : ""}亂序第 ${esc(p.code)} 份` : `${instr ? "　｜　" : ""}原始順序（按「🔀 亂序」打亂）`}</div>
     <div class="pt">${tbl(0, half)}${tbl(half, n)}</div>
   </div>`;
 }
