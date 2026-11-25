@@ -1257,8 +1257,8 @@ function i18nNode(n) {
   if (n.nodeType === 3) {
     const p = n.parentElement; if (!p || p.closest(I18N_SKIP)) return;
     const cur = n.nodeValue;
-    if (LANG === "en") { const tr = i18nStr(cur); if (tr !== cur) { i18nOrig.set(n, cur); n.nodeValue = tr; } }
-    else if (i18nOrig.has(n)) { n.nodeValue = i18nOrig.get(n); i18nOrig.delete(n); }
+    if (LANG === "en") { const tr = i18nStr(cur); if (tr !== cur) { i18nOrig.set(n, cur); i18nLast.set(n, tr); n.nodeValue = tr; } }
+    else if (i18nOrig.has(n)) { const o = i18nOrig.get(n); i18nOrig.delete(n); i18nLast.set(n, o); n.nodeValue = o; }
     return;
   }
   if (n.nodeType !== 1 || n.closest(I18N_SKIP)) return;
@@ -1276,14 +1276,22 @@ function applyLang() {
   document.title = LANG === "en" ? "Vocab Quiz" : "單字小考 Vocab Quiz";
   i18nNode(document.body);
   $("#i18nBtn").textContent = LANG === "en" ? "🌐 中文" : "🌐 English";
+  i18nObs.takeRecords();
   i18nBusy = false;
 }
-new MutationObserver(ms => {
-  if (i18nBusy || LANG !== "en") return;
-  i18nBusy = true;
-  ms.forEach(m => { if (m.type === "characterData") { i18nOrig.delete(m.target); i18nNode(m.target); } else m.addedNodes.forEach(i18nNode); });
-  i18nBusy = false;
-}).observe(document.body, { childList: true, subtree: true, characterData: true });
+const i18nObs = new MutationObserver(ms => {
+  if (LANG !== "en") return;
+  ms.forEach(m => {
+    if (m.type === "characterData") {
+      // 只有網頁自己改了文字（不是我們翻譯造成的）才重新翻
+      if (m.target.nodeValue === i18nLast.get(m.target)) return;
+      i18nOrig.delete(m.target); i18nNode(m.target);
+    } else m.addedNodes.forEach(i18nNode);
+  });
+  i18nObs.takeRecords(); // 丟掉剛剛翻譯自己造成的變動
+});
+const i18nLast = new WeakMap(); // 文字節點 → 我們最後寫進去的字
+i18nObs.observe(document.body, { childList: true, subtree: true, characterData: true });
 $("#i18nBtn").onclick = () => { LANG = LANG === "en" ? "zh" : "en"; lsSet("vq_lang", LANG); applyLang(); };
 applyLang();
 
