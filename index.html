@@ -240,6 +240,8 @@ tr.flag td{background:#fffbea}
       <div class="toolbar" style="margin-top:0">
         <button class="btn big orange" id="mkShuffle">🔀 亂序</button>
         <button class="btn big" id="mkDownload">🖨 下載考卷</button>
+        <button class="btn" id="mkBlank10">📄 空白卷 10 題（一頁 3 份）</button>
+        <button class="btn" id="mkBlank20">📄 空白卷 20 題（一頁 2 份）</button>
         <div class="row" style="gap:6px"><input type="text" id="mkCount" value="1" inputmode="numeric" style="width:70px;font-size:18px;text-align:center"><span>份</span></div>
         <label class="switch" style="font-weight:700"><input type="checkbox" id="mkKey" checked> 含老師答案版</label>
       </div>
@@ -265,7 +267,7 @@ tr.flag td{background:#fffbea}
               <option value="mix">混合（隨機出中文或英文）</option>
             </select></div>
           <div><label class="f">每張 A4 印幾份</label>
-            <select id="mkPer"><option value="2">2 份（上下對切）</option><option value="1">1 份</option></select></div>
+            <select id="mkPer"><option value="2">多份（20 題 2 份／10 題 3 份）</option><option value="1">1 份</option></select></div>
           <div><label class="f">日期（會印在考卷上）</label><input type="text" id="mkDate" placeholder="例如 11/20"></div>
         </div>
       </details>
@@ -435,18 +437,22 @@ function drawQuiz(ctx, ox, oy, w, h, paper, date, withKey) {
   ctx.fillText("Name:", x0, y); ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(x0 + 96, y + 4); ctx.lineTo(x0 + 330, y + 4); ctx.stroke();
   ctx.fillText("Range:", x0 + 360, y);
-  ctx.font = `500 28px ${FONT}`; ctx.fillText(paper.range, x0 + 465, y);
+  if (paper.empty) { ctx.beginPath(); ctx.moveTo(x0 + 465, y + 4); ctx.lineTo(x0 + 610, y + 4); ctx.stroke(); }
+  else { ctx.font = `500 28px ${FONT}`; ctx.fillText(paper.range, x0 + 465, y); }
   ctx.font = `700 30px ${FONT}`; ctx.fillText("Score:", x0 + 640, y);
   ctx.beginPath(); ctx.moveTo(x0 + 738, y + 4); ctx.lineTo(x0 + 880, y + 4); ctx.stroke();
   const blank = paper.mode === "blank";
   // 流水號：第幾份亂序卷
   ctx.lineWidth = 2.5; ctx.strokeRect(x1 - 200, oy + 26, 200, 52);
   ctx.font = `700 22px ${FONT}`; ctx.fillText("No.", x1 - 188, y - 2);
-  ctx.font = `900 34px ${FONT}`; ctx.fillText(String(paper.code), x1 - 140, y);
+  if (!paper.empty) { ctx.font = `900 34px ${FONT}`; ctx.fillText(String(paper.code), x1 - 140, y); }
   y += 44;
   ctx.font = `500 22px ${FONT}`; ctx.fillStyle = "#333";
   const instr = { blank: "寫出英文單字和中文意思", zh: "看中文，寫出英文單字", en: "看英文，寫出中文意思", mix: "看題目，寫出英文單字或中文意思" }[paper.mode];
-  ctx.fillText(instr + (date ? `　　Date: ${date}` : ""), x0, y);
+  ctx.font = `700 24px ${FONT}`; ctx.fillStyle = "#000"; ctx.fillText("Date:", x0, y);
+  if (date) { ctx.font = `500 24px ${FONT}`; ctx.fillText(date, x0 + 72, y - 2); }
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x0 + 68, y + 4); ctx.lineTo(x0 + 250, y + 4); ctx.stroke();
+  ctx.font = `500 22px ${FONT}`; ctx.fillStyle = "#333"; ctx.fillText(instr, x0 + 290, y);
   if (withKey) { ctx.fillStyle = "#d0021b"; ctx.font = `900 22px ${FONT}`; ctx.fillText("【教師答案】", x1 - 150, y); }
   ctx.fillStyle = "#000";
   // table
@@ -497,13 +503,14 @@ function drawQuiz(ctx, ox, oy, w, h, paper, date, withKey) {
 function renderPages(papers, per, date, keyPapers) {
   // 學生卷：每頁 per 份（只有 1 份時上下印同一份）；老師答案：另起新頁，一頁一份
   const pages = [];
-  const studs = per === 2 && papers.length === 1 ? [papers[0], papers[0]] : papers;
+  if (per === 2 && papers[0].items.length <= 10) per = 3;
+  const studs = per > 1 && papers.length === 1 ? Array(per).fill(papers[0]) : papers;
   const page = () => { const c = document.createElement("canvas"); c.width = PW * SCALE; c.height = PH * SCALE; const ctx = c.getContext("2d"); ctx.scale(SCALE, SCALE); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, PW, PH); pages.push(c); return ctx; };
   for (let i = 0; i < studs.length; i += per) {
     const ctx = page(), h = PH / per;
     for (let j = 0; j < per && i + j < studs.length; j++) {
       drawQuiz(ctx, 0, j * h, PW, h, studs[i + j], date, false);
-      if (per === 2 && j === 0) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#999"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(30, h); ctx.lineTo(PW - 30, h); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = "#000"; }
+      if (per > 1 && j < per - 1) { ctx.setLineDash([10, 8]); ctx.strokeStyle = "#999"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(30, (j + 1) * h); ctx.lineTo(PW - 30, (j + 1) * h); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = "#000"; }
     }
   }
   for (const k of (keyPapers || [])) drawQuiz(page(), 0, 0, PW, PH, k, date, true);
@@ -643,6 +650,19 @@ $("#mkDownload").onclick = async () => {
   } catch (e) { mkMsg(`<div class="err">下載失敗：${esc(e.message || e)}</div>`); }
   btn.disabled = false;
 };
+
+// ---------- 空白卷：No.、Range 都空白 ----------
+async function downloadBlank(n, per) {
+  if (!window.jspdf) return mkMsg(`<div class="err">PDF 元件載入失敗，請重新整理</div>`);
+  const paper = { empty: true, mode: "blank", range: "", code: "", items: Array.from({ length: n }, () => ({ en: "", zh: "" })) };
+  await loadFonts([paper]);
+  const pages = renderPages([paper], per, "", []);
+  const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", compress: true });
+  pages.forEach((pg, i) => { if (i) pdf.addPage(); pdf.addImage(pg.toDataURL("image/jpeg", .9), "JPEG", 0, 0, 210, 297); });
+  pdf.save(`空白單字卷_${n}題.pdf`);
+}
+$("#mkBlank10").onclick = () => downloadBlank(10, 3);
+$("#mkBlank20").onclick = () => downloadBlank(20, 2);
 
 // ---------- 搜尋下拉：出過的考卷 ----------
 function renderDrop() {
@@ -1170,13 +1190,13 @@ renderPaper(); renderRecords();
 // 只翻介面文字；單字的中文意思、例句、考卷內容不翻
 const I18N_PAIRS = [
   ["📝 出考卷", "📝 Make Quiz"], ["🐝 拼字練習", "🐝 Spelling"], ["📚 題庫", "📚 Word Bank"],
-  ["單字小考 ✏️", "1200 Words ✏️"], ["份", "copies"], ["輸入考試範圍，例如 T24-T43", "Enter a range, e.g. T24-T43"],
+  ["單字小考 ✏️", "1200 Words ✏️"], ["份", "copies"], ["📄 空白卷 10 題（一頁 3 份）", "📄 Blank 10 words (3 per page)"], ["📄 空白卷 20 題（一頁 2 份）", "📄 Blank 20 words (2 per page)"], ["輸入考試範圍，例如 T24-T43", "Enter a range, e.g. T24-T43"],
   ["🔀 亂序", "🔀 Shuffle"], ["🖨 下載考卷", "🖨 Download"], ["含老師答案版", "Include answer key"],
   ["印很多份時，每一份的順序都不一樣，右上角 No. 也不同。勾「含老師答案版」會在 PDF 最後附上每個 No. 的紅字答案頁。", "When printing many copies, each copy has a different order and its own No. With \"Include answer key\", answer pages for each No. are added at the end of the PDF."],
   ["看答案", "Show"], ["幾號", "No."], ["回到原始順序", "Original order"], ["👆 點單字看例句", "👆 Tap a word for its sentence"],
   ["🗣 全部例句", "🗣 All sentences"], ["🙈 全部收起", "🙈 Hide all"], ["顯示答案", "Show answers"], ["更多設定", "More settings"],
   ["空白卷（學生寫英文和中文）", "Blank (write English & Chinese)"], ["看中文，寫英文", "Chinese → write English"], ["看英文，寫中文", "English → write Chinese"],
-  ["混合（隨機出中文或英文）", "Mixed (random)"], ["每張 A4 印幾份", "Copies per A4 page"], ["2 份（上下對切）", "2 (cut in half)"], ["1 份", "1"],
+  ["混合（隨機出中文或英文）", "Mixed (random)"], ["每張 A4 印幾份", "Copies per A4 page"], ["多份（20 題 2 份／10 題 3 份）", "Multiple (20 words: 2, 10 words: 3)"], ["1 份", "1"],
   ["日期（會印在考卷上）", "Date (printed on the quiz)"], ["例如 11/20", "e.g. 11/20"],
   ["📋 所有考卷紀錄", "📋 All quiz records"], ["輸入 No.（例如 37）或範圍（例如 T24-T43）", "Enter a No. (e.g. 37) or a range (e.g. T24-T43)"],
   ["紀錄存在這台裝置的瀏覽器。換電腦或手機時，輸入範圍和 No. 一樣看得到同一份答案。", "Records are saved in this browser. On another device, enter the range and No. to see the same answers."],
