@@ -161,6 +161,11 @@ tr.flag td{background:#fffbea}
 .stat{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
 .stat div{background:#f4f6fb;border-radius:12px;padding:8px 14px;font-size:13px}
 .stat b{display:block;font-size:20px;color:var(--pri)}
+#bankStat div{cursor:pointer;border:2.5px solid transparent;transition:.1s}
+#bankStat div:hover{background:#fff6d6}
+#bankStat div.on{background:#ffd84d;border-color:#26305a}
+#bankStat div.on b{color:#26305a}
+.bank-head{font-weight:700;font-size:17px;margin:4px 0 8px;color:#26305a}
 .res tr{cursor:pointer}
 .res td{font-size:15px;padding:8px 4px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90vw}
@@ -380,6 +385,7 @@ tr.flag td{background:#fffbea}
       <h2>📚 1200 單題庫</h2>
       <div class="stat" id="bankStat"></div>
       <input type="text" id="bankSearch" placeholder="搜尋編號、英文或中文；輸入 T44-T63 可看範圍">
+      <div class="bank-head" id="bankHead"></div>
       <div class="list" id="bankList" style="margin-top:8px"></div>
     </div>
   </section>
@@ -795,15 +801,19 @@ $("#mkRange").oninput = () => {
 function renderBank() {
   const nos = Object.keys(bank).sort(cmpKey);
   const letters = {}; nos.forEach(k => { const L = splitKey(k)[0] || "#"; letters[L] = (letters[L] || 0) + 1; });
-  $("#bankStat").innerHTML = `<div><b>${nos.length}</b>個單字</div>` + Object.keys(letters).sort().map(L => `<div><b>${esc(L)}</b>${letters[L]} 個</div>`).join("");
+  const BL = renderBank.L || "";
+  $("#bankStat").innerHTML = `<div data-l="" class="${BL ? "" : "on"}"><b>${nos.length}</b>個單字</div>` + Object.keys(letters).sort().map(L => `<div data-l="${esc(L)}" class="${BL === L ? "on" : ""}"><b>${esc(L)}</b>${letters[L]} 個</div>`).join("");
   const q = $("#bankSearch").value.trim(), ql = q.toLowerCase(), pr = parseRange(q);
-  let list = nos;
-  if (pr) list = nos.filter(k => inRange(pr, k));
-  else if (q) list = nos.filter(k => k.toLowerCase() === ql || k.toLowerCase().startsWith(ql) && /\d/.test(ql) || bank[k].en.toLowerCase().includes(ql) || String(bank[k].zh).includes(q));
+  let list = BL ? nos.filter(k => (splitKey(k)[0] || "#") === BL) : nos;
+  if (pr) list = list.filter(k => inRange(pr, k));
+  else if (q) list = list.filter(k => k.toLowerCase() === ql || k.toLowerCase().startsWith(ql) && /\d/.test(ql) || bank[k].en.toLowerCase().includes(ql) || String(bank[k].zh).includes(q));
+  const EN = typeof LANG !== "undefined" && LANG === "en";
+  $("#bankHead").textContent = BL ? (EN ? `Starting with ${BL}: ${list.length} words` : `${BL} 開頭：共 ${list.length} 個${q ? "（搜尋結果）" : ""}`) : q ? (EN ? `Results: ${list.length}` : `搜尋結果：${list.length} 個`) : "";
   const shown = list.slice(0, 300);
   $("#bankList").innerHTML = shown.length ? shown.map(n => `<div><span style="color:var(--muted)">${n}</span><b>${esc(bank[n].en)}</b><span>${esc(bank[n].zh)}</span></div>`).join("") + (list.length > 300 ? `<div style="display:block;color:var(--muted)">還有 ${list.length - 300} 個，請用搜尋縮小範圍</div>` : "") : `<div style="display:block;color:var(--muted)">找不到</div>`;
 }
 $("#bankSearch").oninput = renderBank;
+$("#bankStat").onclick = e => { const d = e.target.closest("[data-l]"); if (!d) return; renderBank.L = d.dataset.l === renderBank.L ? "" : d.dataset.l; renderBank(); };
 $("#recSearch").oninput = renderRecords;
 $("#recList").onclick = e => {
   const b = e.target.closest("[data-no]"); if (!b) return;
@@ -1349,7 +1359,7 @@ const I18N_RX = [
 ].concat([[/新範圍，還沒出過考卷/g, "New range – no quiz yet"]]);
 const I18N_LONG = I18N_PAIRS.filter(p => p[0].length >= 4).sort((a, b) => b[0].length - a[0].length);
 const I18N_EXACT = new Map(I18N_PAIRS);
-const I18N_SKIP = ".paper, .dt-ans, .ln-zh, .ln-sent, .rv-zh, .rv-sent, #bankList, .st-words, .sp-in, script, style, #i18nBtn";
+const I18N_SKIP = ".paper, #bankHead, .dt-ans, .ln-zh, .ln-sent, .rv-zh, .rv-sent, #bankList, .st-words, .sp-in, script, style, #i18nBtn";
 let LANG = lsGet("vq_lang", "zh");
 const i18nOrig = new WeakMap();   // 文字節點 → 原本的中文
 const i18nAttr = new WeakMap();   // 元素 → {placeholder, title}
